@@ -1,0 +1,166 @@
+[
+{
+    "name": "meshoptimizer",
+    "source": {
+        "type": "git",
+        "url": "https://github.com/zeux/meshoptimizer.git",
+        "revision": "v0.19"
+    },
+    "postprocess": {
+       "type": "script",
+       "file": "meshoptimizer.py"
+    }
+},
+{
+    "name": "glslang",
+    "source": {
+        "type": "git",
+        "url": "https://github.com/KhronosGroup/glslang.git",
+        "revision": "12.3.1"
+    }
+},
+{
+    "name": "tinyobjloader",
+    "source": {
+        "type": "git",
+        "url": "https://github.com/tinyobjloader/tinyobjloader.git",
+        "revision": "0fc802cf468d23b9d205890b76b268f61b948e6d"
+    },
+    "postprocess": {
+       "type": "script",
+       "file": "tinyobjloader.py"
+    }
+},
+{
+    "name": "glfw",
+    "source": {
+        "type": "git",
+        "url": "https://github.com/glfw/glfw.git",
+        "revision": "3.3.8"
+    }
+},
+{
+    "name": "stb",
+    "source": {
+        "type": "git",
+        "url": "https://github.com/nothings/stb.git",
+        "revision": "8b5f1f37b5b75829fc72d38e7b5d4bcbf8a26d55"
+    }
+},
+{
+    "name": "3D-Graphics-Rendering-Cookbook",
+    "source": {
+        "type": "git",
+        "url": "https://github.com/PacktPublishing/3D-Graphics-Rendering-Cookbook.git",
+        "revision": "9b44e0b5dc0328e635bd30edc8f4f2ba1e79be38"
+    }
+},
+{
+    "name": "bc7enc",
+    "source": {
+        "type": "git",
+        "url": "https://github.com/richgel999/bc7enc.git",
+        "revision": "f66c2e489b07138f2673a2fb3d27c1aa1d565c48"
+     },
+     "postprocess": {
+        "type": "script",
+        "file": "bc7enc.py"
+     }
+},
+{
+    "name": "gli",
+    "source": {
+        "type": "git",
+        "url": "https://github.com/g-truc/gli.git",
+        "revision": "779b99ac6656e4d30c3b24e96e0136a59649a869"
+    }
+},
+{
+    "name": "glm",
+    "source": {
+        "type": "git",
+        "url": "https://github.com/g-truc/glm.git",
+        "revision": "0.9.9.8"
+    }
+},
+{
+    "name": "taskflow",
+    "source": {
+        "type": "git",
+        "url": "https://github.com/taskflow/taskflow.git",
+        "revision": "v3.6.0"
+    }
+},
+{
+    "name": "imgui",
+    "source": {
+        "type": "git",
+        "url": "https://github.com/ocornut/imgui.git",
+        "revision": "v1.89.5"
+    }
+},
+{
+    "name": "volk",
+    "source": {
+        "type": "git",
+        "url": "https://github.com/zeux/volk",
+        "revision": "f51cfb6578e81acda634c8e69badc5016bccc95e"
+    }
+},
+{
+    "name": "vma",
+    "source": {
+        "type": "git",
+        "url": "https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git",
+        "revision": "v3.0.1"
+    }
+},
+{
+    "name": "tracy",
+    "source": {
+        "type": "git",
+        "url": "https://github.com/wolfpld/tracy.git",
+        "revision": "v0.9.1"
+    }
+},
+{
+    "name": "EGL",
+    "source": {
+        "type": "git",
+        "url": "https://github.com/McNopper/EGL.git",
+        "revision": "f20cdac3745a0d45ce8a8358ea40389278ae91e5"
+    }
+},
+{
+    "name": "minilog",
+    "source": {
+        "type": "git",
+        "url": "https://github.com/corporateshark/minilog",
+        "revision": "024d5d811e4140b48ae23fc3522b60dd6ae5bc90"
+    }
+},
+{
+    "name": "ldrutils",
+    "source": {
+        "type": "git",
+        "url": "https://github.com/corporateshark/ldrutils",
+        "revision": "b5edab4b02e35f2fdc3944acdd9b55bd9da86e51"
+    }
+},
+{
+    "name": "MoltenVK",
+    "source": {
+        "type": "sourcefile",
+        "url": "https://raw.githubusercontent.com/KhronosGroup/MoltenVK/v1.2.5/MoltenVK/MoltenVK/API/mvk_config.h",
+        "sha1": "2f7b9eaeff8e3ac725b6698c309d434451922cb3"
+    }
+},
+{
+    "name": "cmake-wayland",
+    "source": {
+        "type": "sourcefile",
+        "url": "https://raw.githubusercontent.com/LunarG/VulkanSamples/master/cmake/FindWayland.cmake",
+        "sha1": "c2f6e9245c257e6eff91a53602844175e12a6ecc"
+    }
+}
+]
