@@ -44,5 +44,3 @@ endmacro()
 ADD_DEMO("SimpleVoxel")
 ADD_DEMO("SimpleShadertoy")
 ADD_DEMO("DefaultInstance")
-
-ADD_DEMO("TestVoxel")
