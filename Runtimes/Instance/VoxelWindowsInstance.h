@@ -134,11 +134,17 @@ public:
 	{
 		WhenCameraChunkUpdate();
 	}
-	virtual void WhenCameraChunkUpdate() = 0;
+	virtual void WhenCameraChunkUpdate()
+	{
+		//Donothing
+	}
 	//
 	void DummyWhenCameraUpdate()
 	{
 		WhenCameraUpdate();
 	}
-	virtual void WhenCameraUpdate() = 0;
+	virtual void WhenCameraUpdate()
+	{
+		//Donothing
+	}
 };

@@ -85,7 +85,7 @@ struct FGeneratorHelper
         }
         return d;
     }
-    //Todo: can be optimize by octree
+    //Todo: can be optimize by octree (culling on top level)
     //If using neural, can train a "min sdf" layered network for fast culling
     inline static FChunk TestGenerator(ivec3 StartLocation, float BlockSize, unsigned char ChunkResolution, uint32_t MipmapLevel)
     {
