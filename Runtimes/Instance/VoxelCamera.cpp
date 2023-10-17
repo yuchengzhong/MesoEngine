@@ -1,3 +1,4 @@
+// Meso Engine 2024
 #include "VoxelCamera.h"
 
 void FVoxelCamera::InitializeVoxelCamera(float FovAngle_, float Near_, float Far_)

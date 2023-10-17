@@ -1,3 +1,4 @@
+// Meso Engine 2024
 #pragma once
 #include <vector>
 #include <atomic>
@@ -223,6 +224,11 @@ public:
 			.CameraChunk = CameraChunkLocation , 
 			.CameraForwardVector = CameraForwardVector 
 		};
+		// The chunk logic
+		// We firstly get the unloaded chunks, then we call generator for computing it
+		// We atomically set this chunk to "Computing" state to avoid over-computing
+		// After the compute is finish, we put it into pool. The pool using thread storage so it can be seen as a thread-private-lru
+		//
 		for (uint32_t i = 0; i < TotalNum; i++)
 		{
 			ivec3 CurrentDesiredChunkLocation = DesiredToLoadChunkLocations.front();
@@ -269,6 +275,17 @@ public:
 			}
 			else//Already loaded
 			{
+				//TODO: Update blocks
+				// We got visible chunks here, if a chunk is loaded, we can get every block's info
+				// If the block is not loaded into continuous memory, we can try load it
+				// Loading it will possibily overwrite the ones, so we need a importance function for sorting the importance of it
+				// We load chunks and blocks into continous memory, and we are not gonna modify it any more in this frame
+				// We need another tree to decide whether the chunk is loaded into continous memory or not
+				// We need another tree inside the above tree to decide whether the block is loaded or not
+				// Also, do we need multi threading??????????????????
+				// If needed, do we need sync?
+				// Acceptable cost: 1 ms <<<<<<<<<<<<<<<<<<<<<
+				// LRU is not praticle for multithreading
 				DesiredToLoadChunkLocations.pop();
 				if (OldState == EChunkState::Empty)
 				{
@@ -292,6 +309,7 @@ public:
 			//printf("Chunk %d Loaded\n", CurrentTotallyAddedChunkNum);
 		}
 		//Visualize
+		//TODO: Delete this function
 		UpdateVisibleBlock(LVKContext, VoxelSceneConfig);
 		//For Debug
 		ChunkPool.UpdateDebugVisibleChunk(LVKContext, VoxelSceneConfig);

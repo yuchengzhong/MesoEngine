@@ -1,3 +1,4 @@
+// Meso Engine 2024
 #pragma once
 #include <vector>
 #include <queue>
@@ -181,7 +182,7 @@ public:
 		};
 		RPLDebugInstance = LVKContext->createRenderPipeline(DebugInstanceDescriptor, nullptr);
 	}
-
+#define ULTI_READING
 	template<typename T>
 	inline void PushToPool(uint32_t MaxChunkCount, TThreadSafeMemoryPool<T>& MemoryPool, uint32_t ReservedMemoryPoolIndex, T&& NewItem, const EChunkState& NewState, const FImportanceComputeInfo& CameraInfo)
 	{
@@ -197,6 +198,7 @@ public:
 			MemoryPool.Release(ReservedMemoryPoolIndex); //Remove locked memory pool
 			return;
 		}
+#ifdef ULTI_READING
 		else//If can override
 		{
 			//If Chunk is not reading, then remove old chunk
@@ -206,8 +208,11 @@ public:
 				return;
 			}
 		}
+#elif
 		//Load, add new
-		//ChunksLookupTable.ATOMIC_remove_and_insert(OldLocation, NewLocation, NewState);
+		ChunksLookupTable.ATOMIC_remove_and_insert(OldLocation, NewLocation, NewState);
+#endif
+		//TODO: Fill pool
 		MemoryPool[ReservedMemoryPoolIndex] = std::move(NewItem);
 		MemoryPool.Release(ReservedMemoryPoolIndex);
 		//Mark dirty

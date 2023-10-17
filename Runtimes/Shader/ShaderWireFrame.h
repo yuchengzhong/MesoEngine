@@ -1,3 +1,4 @@
+// Meso Engine 2024
 #pragma once
 #include <LVK.h>
 #include "ShaderBase.h"
