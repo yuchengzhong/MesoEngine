@@ -1,2 +1,2 @@
 # MesoEngine
-A high resolution voxel engine.
+A high resolution voxel engine WIP.
