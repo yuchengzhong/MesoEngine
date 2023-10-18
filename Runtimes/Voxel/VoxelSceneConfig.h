@@ -18,13 +18,13 @@ struct FVoxelSceneConfig
 	uint32_t MaxChunkCount = 8192 * 2;
 	uint32_t MaxEmptyChunkCount = 8192 * 16;
 
-	uint32_t MaxChunkCheckTimes = 16;
-	uint32_t MaxEmptyChunkCheckTimes = 4;
+	uint32_t MaxChunkCheckTimes = 64;
+	uint32_t MaxEmptyChunkCheckTimes = 64;
 	uint32_t MaxBlockCheckTimes = 4;
 
-	uint32_t BakeVisibilityViewNum = 64;
-	uint32_t ViewForwardLoadChunkSize = 16;
-	uint32_t ViewBackwardLoadChunkSize = 4;
+	uint32_t BakeVisibilityViewNum = 256;
+	uint32_t ViewForwardLoadChunkSize = 24;
+	uint32_t ViewBackwardLoadChunkSize = 6;
 	uint32_t MaxSyncedLoadChunkCount = 0;
 	uint32_t MaxUnsyncedLoadChunkCount = 256; //will not exceed physical cpu cores
 	uint32_t ChunkTaskPerCore = 8; //Chunk batch

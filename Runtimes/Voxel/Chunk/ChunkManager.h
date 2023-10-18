@@ -46,6 +46,7 @@ class FChunkManage
 
 	inline static std::string DebugMarkFindAllVisibleChunkTime = "FindAllVisibleChunkTime";
 	inline static std::string DebugMarkGatherAllChunkTime = "GatherAllChunkTime";
+	inline static std::string DebugMarkSumitRenderingDebugChunkTime = "SumitRenderingDebugChunkTime";
 
 	bool bDebugDisableUpdateChunk = false;
 	bool bDebugMultiThreading = false;
@@ -69,7 +70,8 @@ public:
 	//Pool
 	FChunkPool ChunkPool;
 	//Queue
-	std::queue<ivec3> DesiredToLoadChunkLocations;
+	FChunkManageHelper::FImportanceChunkQueue DesiredToLoadChunkLocations;
+	std::queue<ivec3> RestDesiredToLoadChunkLocations;
 	//GPU
 	lvk::Holder<lvk::BufferHandle> ChunkBuffer;
 	std::vector<FGPUChunkData> ChunkBufferCPU;
@@ -92,9 +94,7 @@ public:
 		SetGenerator(std::move(Generator_));
 		//Bake visibility
 		BakeVisibilityViewNum = VoxelSceneConfig.BakeVisibilityViewNum;
-		//BakedVisibility = FChunkManageHelper::BakeVisibilityByView(VoxelSceneConfig, BakeVisibilityViewNum);
 		BakedVisibility = FChunkManageHelper::BakeVisibilityByView(VoxelSceneConfig, BakeVisibilityViewNum);
-
 
 		ChunkBuffer = LVKContext->createBuffer(
 			{
@@ -106,37 +106,28 @@ public:
 			},
 			nullptr);
 	}
+private:
+	FChunkManageHelper::FImportanceChunkQueue DummyThisFrameChunkQueue;
+public:
 	// This is slow
-	inline std::queue<ivec3> GetDesiredShowChunkLocation(ivec3 ChunkLocation, vec3 ForwardVector, const FVoxelSceneConfig& VoxelSceneConfig)
+	inline FChunkManageHelper::FImportanceChunkQueue& GetDesiredShowChunkLocation(ivec3 ChunkLocation, vec3 ForwardVector, const FVoxelSceneConfig& VoxelSceneConfig)
 	{
 		DebugTimerSet.Start(DebugMarkFindAllVisibleChunkTime);
-		std::queue<ivec3> Result;//More importance more front
-		FChunkManageHelper::FImportanceChunkQueue ImportancePriorityQueue;
+		FChunkManageHelper::FImportanceChunkQueue& ImportancePriorityQueue = DummyThisFrameChunkQueue;
 		if (BakeVisibilityViewNum <= 0)
 		{
-			ImportancePriorityQueue = FChunkManageHelper::GetDesiredShowChunkLocationByView(ForwardVector, VoxelSceneConfig);
+			DummyThisFrameChunkQueue = FChunkManageHelper::GetDesiredShowChunkLocationByView(ForwardVector, VoxelSceneConfig);//This need a copy
 		}
 		else
 		{
 			ImportancePriorityQueue = BakedVisibility.Query(ForwardVector);
 		}
-		while (!ImportancePriorityQueue.empty())
-		{
-			Result.push(ChunkLocation + ImportancePriorityQueue.top().second);
-			//printf("Pushed: %d,%d,%d\n", ImportancePriorityQueue.top().second.x, ImportancePriorityQueue.top().second.y, ImportancePriorityQueue.top().second.z);
-			ImportancePriorityQueue.pop();
-		}
-		if ((uint32_t)Result.size() > VoxelSceneConfig.MaxChunkCount)
-		{
-			//Warning
-			//printf("GetDesiredShowChunkLocation: Warning, single frame chunk needed to load (%d) exceed MaxChunkCount (%d)\n", (uint32_t)Result.size(), VoxelSceneConfig.MaxChunkCount);
-		}
 		DebugTimerSet.Record(DebugMarkFindAllVisibleChunkTime);
 		//Debug
-		DebugVisibleChunkNum = (uint32_t)Result.size();
+		DebugVisibleChunkNum = (uint32_t)ImportancePriorityQueue.size();
 		DebugMaxVisibleChunkNum = VoxelSceneConfig.MaxChunkCount;
 		DebugMaxSyncedLoadChunkNum = VoxelSceneConfig.MaxSyncedLoadChunkCount;
-		return Result;//rvo
+		return ImportancePriorityQueue;//rvo
 	}
 private:
 	struct FUpdateChunksCacheType
@@ -168,7 +159,8 @@ public:
 		//Old Chunk...
 		//New Chunk...
 		//Overlap no need to count
-		DesiredToLoadChunkLocations = GetDesiredShowChunkLocation(NewChunkLocation, NewForwardVector, VoxelSceneConfig);
+		DesiredToLoadChunkLocations = GetDesiredShowChunkLocation(NewChunkLocation, NewForwardVector, VoxelSceneConfig); //copy
+		RestDesiredToLoadChunkLocations.empty();
 		ChunkPool.IncreaseFrameStamp();
 	}
 	void MultiThreadGenerator(const ivec3 CurrentDesiredChunkLocation, const uint32_t MipmapLevel, const FImportanceComputeInfo& CameraInfo, const FVoxelSceneConfig& VoxelSceneConfig)
@@ -240,7 +232,7 @@ public:
 		{
 			for (uint32_t i = 0; i < TotalNum; i++)
 			{
-				ivec3 CurrentDesiredChunkLocation = DesiredToLoadChunkLocations.front();
+				ivec3 CurrentDesiredChunkLocation = DesiredToLoadChunkLocations.top().second + CameraChunkLocation;
 				uint32_t MipmapLevel = 0;
 				EChunkState OldState = EChunkState::Computing;
 				if (ChunkPool.ChunksLookupTable.ATOMIC_not_contains_insert(CurrentDesiredChunkLocation, EChunkState::Computing, OldState)) //Not found
@@ -294,9 +286,11 @@ public:
 		{
 			std::vector<ivec3> BatchedChunkLocations;
 			std::vector<uint32_t> BatchedMipmapLevels;
-			for (uint32_t i = 0; i < TotalNum; i++)
+			const uint32_t RestChunkNum = RestDesiredToLoadChunkLocations.size();
+			for (uint32_t i = 0; i < TotalNum + RestChunkNum; i++)
 			{
-				ivec3 CurrentDesiredChunkLocation = DesiredToLoadChunkLocations.front();
+				const bool bIsResetChunk = RestDesiredToLoadChunkLocations.size() > 0;
+				ivec3 CurrentDesiredChunkLocation = bIsResetChunk ? RestDesiredToLoadChunkLocations.front() : (DesiredToLoadChunkLocations.top().second + CameraChunkLocation);
 				uint32_t MipmapLevel = 0;
 				EChunkState OldState = EChunkState::Computing;
 
@@ -320,7 +314,14 @@ public:
 							DeltaSyncedTime += Timer.Step();
 						}
 						CurrentSyncedChunkCount++;
-						DesiredToLoadChunkLocations.pop();
+						if (bIsResetChunk)
+						{
+							RestDesiredToLoadChunkLocations.pop();
+						}
+						else
+						{
+							DesiredToLoadChunkLocations.pop();
+						}
 						continue;
 					}
 					else // Multi-thread load
@@ -344,14 +345,30 @@ public:
 							}
 						}
 						CurrentMultiThreadChunkCount++;
-						DesiredToLoadChunkLocations.pop();
+						if (bIsResetChunk)
+						{
+							RestDesiredToLoadChunkLocations.pop();
+						}
+						else
+						{
+							DesiredToLoadChunkLocations.pop();
+						}
 						continue;
 					}
 				FailedToDispatchBatch:
 					{
+						if (bIsResetChunk)
+						{
+							RestDesiredToLoadChunkLocations.pop();
+						}
+						else
+						{
+							DesiredToLoadChunkLocations.pop();
+						}
 						//ChunkPool.ChunksLookupTable.ATOMIC_remove(CurrentDesiredChunkLocation);// Modify back
 						for (auto CurrentLoadedDesiredChunkLocation : BatchedChunkLocations)
 						{
+							RestDesiredToLoadChunkLocations.push(CurrentLoadedDesiredChunkLocation);
 							ChunkPool.ChunksLookupTable.ATOMIC_remove(CurrentLoadedDesiredChunkLocation);
 						}
 						break;
@@ -359,7 +376,14 @@ public:
 				}
 				else //Already loaded
 				{
-					DesiredToLoadChunkLocations.pop();
+					if (bIsResetChunk)
+					{
+						RestDesiredToLoadChunkLocations.pop();
+					}
+					else
+					{
+						DesiredToLoadChunkLocations.pop();
+					}
 				}
 			}
 		}
@@ -385,6 +409,7 @@ public:
 		//Debug visible chunk
 		if (bDebugVisibleChunk)
 		{
+			DebugTimerSet.Start(DebugMarkSumitRenderingDebugChunkTime);
 			lvk::ICommandBuffer& Buffer = LVKContext->acquireCommandBuffer();
 			Buffer.cmdBeginRendering(ChunkPool.RPDebugInstance, ChunkPool.FBDebugInstance);
 			{
@@ -403,6 +428,7 @@ public:
 			Buffer.cmdEndRendering();
 			Buffer.transitionToShaderReadOnly(ChunkPool.FBDebugInstance.color[0].texture); //Transit
 			LVKContext->submit(Buffer);
+			DebugTimerSet.Record(DebugMarkSumitRenderingDebugChunkTime);
 		}
 	}
 	//
@@ -473,8 +499,8 @@ public:
 	//GUI
 	void RenderManagerInfo()
 	{
-		ImVec2 NewWindowsPosition = ImVec2(50, 400);
-		const float Offset = 200.0f;
+		ImVec2 NewWindowsPosition = ImVec2(50, 300);
+		const float Offset = 300.0f;
 		ImGui::SetNextWindowPos(NewWindowsPosition);
 		ImGui::PushStyleColor(ImGuiCol_WindowBg, FColorHelper::GetBackgroundGreen());
 		ImGui::Begin("Chunk Manager information:", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
@@ -559,6 +585,11 @@ public:
 		ImGui::Text("Gather All Chunk Time:");
 		ImGui::SameLine(Offset);
 		ImGui::Text("%.4lf ms", GatherAllChunkTime * 1000.0);
+
+		double SumitRenderingDebugChunkTime = DebugTimerSet.GetAverage(DebugMarkSumitRenderingDebugChunkTime);
+		ImGui::Text("Debug Sumit Rendering Debug Chunk Time:");
+		ImGui::SameLine(Offset);
+		ImGui::Text("%.4lf ms", SumitRenderingDebugChunkTime * 1000.0);
 
 		ImGui::End();
 		ImGui::PopStyleColor();
