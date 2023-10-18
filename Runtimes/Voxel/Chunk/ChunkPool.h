@@ -20,7 +20,8 @@
 #include "Shader/ShaderWireFrame.h"
 #include "Thread/ThreadSafeMap.h"
 #include "Thread/AtomicVector.h"
-#include "Thread/ThreadSafeMemoryPool.h"
+#include "Thread/MemoryPool.h"
+#include "Thread/ThreadSafeQueue.h"
 
 #include <functional>
 #include <climits>
@@ -42,10 +43,9 @@ struct FIVec3Comparator
 };
 enum class EChunkState : uint8_t
 {
-	Computing = 1 << 0, // 0b0001 or 1
-	NonEmpty = 1 << 1, // 0b0010 or 2
-	Empty = 1 << 2, // 0b0100 or 4
-	Reading = 1 << 3, // 0b1000 or 8
+	Computing = 1 << 0,
+	NonEmpty = 1 << 1,
+	Empty = 1 << 2,
 };
 
 class EChunkStateUtils 
@@ -67,13 +67,118 @@ public:
 	}
 };
 
+class FTLSModifyBuffer
+{
+public:
+	FChunk ModifyChunk;
+	uint32_t ModifyChunkIndex = INT_MAX;
+
+	FEmptyChunk ModifyEmptyChunk;
+	uint32_t ModifyEmptyChunkIndex = INT_MAX;
+
+	FGPUChunk ModifyGPUChunk;
+	uint32_t ModifyGPUChunkIndex = INT_MAX;
+
+	FGPUSimpleInstanceData ModifyGPUInstance;
+	uint32_t ModifyGPUInstanceIndex = INT_MAX;
+
+	std::vector<FGPUBlock> ModifyGPUBlock;
+	std::vector<uint32_t> ModifyGPUBlockIndex;
+};
+
+class FTLSChunkPool
+{
+public:
+	using FModifyBufferQueue = TThreadSafeQueue<FTLSModifyBuffer>;
+	std::vector<FChunk> ChunksPool;
+	uint32_t CurrentChunkIndex = 0;
+
+	std::vector<FEmptyChunk> EmptyChunksPool;
+	uint32_t CurrentEmptyChunkIndex = 0;
+
+	std::vector<FGPUChunk> GPUChunksPool; //simulate gpu chunk first
+	std::vector<FGPUBlock> GPUBlock;
+
+	std::vector<FGPUSimpleInstanceData> GPUInstanceData;
+	uint32_t CurrentGPUInstanceIndex = 0;
+
+	uint32_t SubMaxChunkCount = 0;
+	uint32_t SubMaxEmptyChunkCount = 0;
+	uint32_t SubMaxBlockCount = 0;
+	uint32_t SubMaxGPUInstanceCount = 0;
+
+	uint32_t ChunkCountOffset = 0;
+	uint32_t EmptyChunkCountOffset = 0;
+	uint32_t BlockCountOffset = 0;
+	uint32_t GPUInstanceOffset = 0;
+	FTLSChunkPool()
+	{
+
+	}
+	void Initialize(const uint32_t& SubMaxChunkCount_, const uint32_t& SubMaxEmptyChunkCount_, const uint32_t& SubMaxBlockCount_, 
+		const uint32_t& ChunkCountOffset_, const uint32_t& EmptyChunkCountOffset_, const uint32_t& BlockCountOffset_)
+	{
+		SubMaxChunkCount = SubMaxChunkCount_;
+		SubMaxEmptyChunkCount = SubMaxEmptyChunkCount_;
+		SubMaxBlockCount = SubMaxBlockCount_;
+		SubMaxGPUInstanceCount = SubMaxChunkCount + SubMaxEmptyChunkCount;
+
+		ChunkCountOffset = ChunkCountOffset_;
+		EmptyChunkCountOffset = EmptyChunkCountOffset_;
+		BlockCountOffset = BlockCountOffset_;
+		GPUInstanceOffset = ChunkCountOffset + EmptyChunkCountOffset;
+
+		ChunksPool.resize(SubMaxChunkCount);
+		EmptyChunksPool.resize(SubMaxEmptyChunkCount);
+
+		GPUChunksPool.resize(SubMaxChunkCount);
+		GPUBlock.resize(SubMaxBlockCount);
+
+		FGPUSimpleInstanceData DefaultInstanceData = { .ChunkLocation = {INT_MAX,INT_MAX,INT_MAX} };
+		GPUInstanceData.resize(SubMaxChunkCount + SubMaxEmptyChunkCount_, DefaultInstanceData);
+	}
+	void ConsumeQueue(FModifyBufferQueue& Queue)
+	{
+		const uint32_t QueueSize = Queue.Size();
+		for (uint32_t i = 0; i < QueueSize; i++)
+		{
+			FTLSModifyBuffer CurrentModifyBuffer;
+			if (!Queue.Pop(CurrentModifyBuffer))
+			{
+				break;
+			}
+			if (CurrentModifyBuffer.ModifyChunkIndex != INT_MAX)
+			{
+				ChunksPool[CurrentModifyBuffer.ModifyChunkIndex] = CurrentModifyBuffer.ModifyChunk;//todo:move
+			}
+			if (CurrentModifyBuffer.ModifyEmptyChunkIndex != INT_MAX)
+			{
+				EmptyChunksPool[CurrentModifyBuffer.ModifyEmptyChunkIndex] = CurrentModifyBuffer.ModifyEmptyChunk;
+			}
+			if (CurrentModifyBuffer.ModifyGPUChunkIndex != INT_MAX)
+			{
+				GPUChunksPool[CurrentModifyBuffer.ModifyGPUChunkIndex] = CurrentModifyBuffer.ModifyGPUChunk;
+			}
+			if (CurrentModifyBuffer.ModifyGPUInstanceIndex != INT_MAX)
+			{
+				GPUInstanceData[CurrentModifyBuffer.ModifyGPUInstanceIndex] = CurrentModifyBuffer.ModifyGPUInstance;
+			}
+			for (uint32_t i = 0; i < CurrentModifyBuffer.ModifyGPUBlock.size(); i++)
+			{
+				GPUBlock[CurrentModifyBuffer.ModifyGPUBlockIndex[i]] = CurrentModifyBuffer.ModifyGPUBlock[i];
+			}
+		}
+	}
+};
 class FChunkPool
 {
 public:
-	TThreadSafeMemoryPool<FChunk> AtomicChunksPool;
-	TThreadSafeMemoryPool<FEmptyChunk> AtomicEmptyChunksPool;
+	std::vector<FTLSChunkPool> TLSChunkPool;
+	std::vector<std::unique_ptr<FTLSChunkPool::FModifyBufferQueue>> TLSChunkPoolModifyBufferQueue;
+	std::vector<FTLSChunkPool> TLSChunkPoolRead;
+	uint32_t ThreadCount = 0;
 	//For multi thread
-	using FChunkLookupTable = TThreadSafeMap<ivec3, EChunkState, FIVec3Comparator>; //if empty,
+	using FChunkLookupTable = TThreadSafeMap<ivec3, EChunkState, FIVec3Comparator>;
 	FChunkLookupTable ChunksLookupTable; 
 	// Before computing, mark as COMPUTING
 	// After computing, mask as NonEmpty/Empty
@@ -84,6 +189,11 @@ public:
 	//Constant
 	uint32_t MaxChunkCount = 0;
 	uint32_t MaxEmptyChunkCount = 0;
+	uint32_t MaxBlockCount = 0;
+	//Try
+	uint32_t MaxChunkCheckTimes = 0;
+	uint32_t MaxEmptyChunkCheckTimes = 0;
+	uint32_t MaxBlockCheckTimes = 0;
 
 	//Runtime
 	std::atomic<bool> bAtomicDebugVisibleChunkDirty = false;
@@ -102,7 +212,7 @@ public:
 	FOctahedronHolder OctahedronMesh;
 
 	lvk::VertexInput DescDebugInstance;
-	uint32_t CurrentDebugDrawInstanceCount = 0;
+	std::atomic<uint32_t> CurrentDebugDrawInstanceCount = 0;
 
 	inline static uint32_t LockOffset = 63;
 	// Debug
@@ -120,13 +230,45 @@ public:
 	{
 		AtomicVisibilityChunkFrameStamp.fetch_add(1);
 	}
-	void Initialize(lvk::IContext* LVKContext, const FVoxelSceneConfig& VoxelSceneConfig, uint32_t ThreadCount)
+	void Initialize(lvk::IContext* LVKContext, const FVoxelSceneConfig& VoxelSceneConfig, uint32_t ThreadCount_)
 	{
+		ThreadCount = ThreadCount_;
 		AtomicVisibilityChunkFrameStamp.store(0);
 		MaxChunkCount = VoxelSceneConfig.MaxChunkCount;
 		MaxEmptyChunkCount = VoxelSceneConfig.MaxEmptyChunkCount;
-		AtomicChunksPool.Initialize(MaxChunkCount, ThreadCount);
-		AtomicEmptyChunksPool.Initialize(MaxEmptyChunkCount, ThreadCount);
+		MaxBlockCount = VoxelSceneConfig.MaxBlockCount;
+
+		TLSChunkPool.resize(ThreadCount);
+		TLSChunkPoolRead.resize(ThreadCount);
+		for (size_t i = 0; i < ThreadCount; ++i) 
+		{
+			TLSChunkPoolModifyBufferQueue.push_back(std::make_unique<FTLSChunkPool::FModifyBufferQueue>());
+		}
+		uint32_t AvgSubMaxChunkCount = MaxChunkCount / ThreadCount;
+		uint32_t AvgSubMaxEmptyChunkCount = MaxEmptyChunkCount / ThreadCount;
+		uint32_t AvgSubMaxBlockCount = MaxBlockCount / ThreadCount;
+
+		MaxChunkCheckTimes = std::max(1u, VoxelSceneConfig.MaxChunkCheckTimes);
+		MaxEmptyChunkCheckTimes = std::max(1u, VoxelSceneConfig.MaxEmptyChunkCheckTimes);
+		MaxBlockCheckTimes = std::max(1u, VoxelSceneConfig.MaxBlockCheckTimes);
+		for (uint32_t i = 0; i < ThreadCount; i++)
+		{
+			uint32_t SubMaxChunkCountStart = AvgSubMaxChunkCount * i;
+			uint32_t SubMaxChunkCountEnd = (i == ThreadCount - 1) ? std::max(AvgSubMaxChunkCount * (i + 1), MaxChunkCount) : AvgSubMaxChunkCount * (i + 1);
+
+			uint32_t SubMaxEmptyChunkCountStart = AvgSubMaxEmptyChunkCount * i;
+			uint32_t SubMaxEmptyChunkCountEnd = (i == ThreadCount - 1) ? std::max(AvgSubMaxEmptyChunkCount * (i + 1), MaxEmptyChunkCount) : AvgSubMaxEmptyChunkCount * (i + 1);
+
+			uint32_t SubMaxMaxBlockCountStart = AvgSubMaxBlockCount * i;
+			uint32_t SubMaxMaxBlockCountEnd = (i == ThreadCount - 1) ? std::max(AvgSubMaxBlockCount * (i + 1), MaxBlockCount) : AvgSubMaxBlockCount * (i + 1);
+
+			TLSChunkPool[i].Initialize(
+				(SubMaxChunkCountEnd - SubMaxChunkCountStart), (SubMaxEmptyChunkCountEnd - SubMaxEmptyChunkCountStart), (SubMaxMaxBlockCountEnd - SubMaxMaxBlockCountStart),
+				SubMaxChunkCountStart, SubMaxEmptyChunkCountStart, SubMaxMaxBlockCountStart);
+			TLSChunkPoolRead[i].Initialize(
+				(SubMaxChunkCountEnd - SubMaxChunkCountStart), (SubMaxEmptyChunkCountEnd - SubMaxEmptyChunkCountStart), (SubMaxMaxBlockCountEnd - SubMaxMaxBlockCountStart),
+				SubMaxChunkCountStart, SubMaxEmptyChunkCountStart, SubMaxMaxBlockCountStart);
+		}
 		//
 		//For Debug
 		OctahedronMesh.Initialize(LVKContext);
@@ -182,53 +324,151 @@ public:
 		};
 		RPLDebugInstance = LVKContext->createRenderPipeline(DebugInstanceDescriptor, nullptr);
 	}
-#define ULTI_READING
 	template<typename T>
-	inline void PushToPool(uint32_t MaxChunkCount, TThreadSafeMemoryPool<T>& MemoryPool, uint32_t ReservedMemoryPoolIndex, T&& NewItem, const EChunkState& NewState, const FImportanceComputeInfo& CameraInfo)
+	inline void PushToPool(uint32_t MaxChunkCount, FTLSChunkPool& MemoryPool, FTLSChunkPool::FModifyBufferQueue& ModifyQueue, uint32_t CheckTimes, T&& NewItem, const EChunkState& NewState, const FImportanceComputeInfo& CameraInfo, const float ChunkSize)
 	{
 		static_assert(std::is_base_of_v<FChunkBase, T>, "T must be derived from FChunkBase");
-		//Unload, clear old
-		const ivec3 OldLocation = MemoryPool[ReservedMemoryPoolIndex].ChunkLocation;
 		const ivec3 NewLocation = NewItem.ChunkLocation;
+		auto NewImportance = CameraInfo.CalculateImportance(NewLocation);
 
-		//If old location's importance larger than new location's
-		if (CameraInfo.CalculateImportance(OldLocation) >= CameraInfo.CalculateImportance(NewLocation))
-		{
-			ChunksLookupTable.ATOMIC_remove(NewLocation); //Remove new reserved location
-			MemoryPool.Release(ReservedMemoryPoolIndex); //Remove locked memory pool
-			return;
-		}
-#ifdef ULTI_READING
-		else//If can override
-		{
-			//If Chunk is not reading, then remove old chunk
-			if (!ChunksLookupTable.ATOMIC_remove_insert_by_condition(OldLocation, NewLocation, NewState, [](EChunkState State) { return !EChunkStateUtils::bHasState(State, EChunkState::Reading); }))
+		auto HelperGetChunk = [&]() -> T& 
 			{
-				MemoryPool.Release(ReservedMemoryPoolIndex);
+				if constexpr (std::is_same_v<T, FChunk>) 
+				{
+					return MemoryPool.ChunksPool[MemoryPool.CurrentChunkIndex];
+				}
+				else
+				{
+					return MemoryPool.EmptyChunksPool[MemoryPool.CurrentEmptyChunkIndex];
+				}
+			};
+
+		auto HelperIncrementIndex = [&]()
+			{
+				if constexpr (std::is_same_v<T, FChunk>) 
+				{
+					MemoryPool.CurrentChunkIndex = (MemoryPool.CurrentChunkIndex + 1) % MemoryPool.SubMaxChunkCount;
+				}
+				else 
+				{
+					MemoryPool.CurrentEmptyChunkIndex = (MemoryPool.CurrentEmptyChunkIndex + 1) % MemoryPool.SubMaxEmptyChunkCount;
+				}
+			};
+		auto HelperGetCurrentIndex = [&]()
+			{
+				if constexpr (std::is_same_v<T, FChunk>) 
+				{
+					return MemoryPool.CurrentChunkIndex;
+				}
+				else 
+				{
+					return MemoryPool.CurrentEmptyChunkIndex;
+				}
+			};
+
+		FTLSModifyBuffer ModifyBuffer;
+		for (uint32_t i = 0; i < CheckTimes; i++)
+		{
+			auto& CurrentChunk = HelperGetChunk();
+			const ivec3 OldLocation = CurrentChunk.ChunkLocation;
+			//if (static_cast<FChunkBase>(CurrentChunk).bIsValid())
+			if (CurrentChunk.FChunkBase::bIsValid())
+			{
+				const float OldImportance = CameraInfo.CalculateImportance(OldLocation);
+				//If old location's importance larger than new location's
+				if (OldImportance >= NewImportance)
+				{
+					continue;
+				}
+				CurrentDebugDrawInstanceCount--;
+			}
+			{
+				CurrentDebugDrawInstanceCount++;
+				ChunksLookupTable.ATOMIC_remove_and_insert(OldLocation, NewLocation, NewState);
+				//
+				FGPUSimpleInstanceData NewInstanceData =
+					{
+						.Position = {ChunkSize,ChunkSize,ChunkSize},
+						.ChunkLocation = NewLocation,
+						.Scale = ChunkSize * 0.1f,
+						.Marker = (std::is_same_v<T, FChunk>) ? 0.5f : 0.0f,
+					};
+				ModifyBuffer.ModifyGPUInstance = NewInstanceData; //copy
+				ModifyBuffer.ModifyGPUInstanceIndex = MemoryPool.CurrentGPUInstanceIndex;
+				MemoryPool.GPUInstanceData[MemoryPool.CurrentGPUInstanceIndex] = std::move(NewInstanceData); //move
+				MemoryPool.CurrentGPUInstanceIndex = (MemoryPool.CurrentGPUInstanceIndex + 1) % MemoryPool.SubMaxGPUInstanceCount;
+				//
+				if constexpr (std::is_same_v<T, FChunk>)
+				{
+					ModifyBuffer.ModifyChunk = NewItem; //Copy
+					ModifyBuffer.ModifyChunkIndex = HelperGetCurrentIndex();
+				}
+				else
+				{
+					ModifyBuffer.ModifyEmptyChunk = NewItem; //Copy
+					ModifyBuffer.ModifyEmptyChunkIndex = HelperGetCurrentIndex();
+				}
+				CurrentChunk = std::move(NewItem); // Move
+				HelperIncrementIndex();
+				// Push modify buffer to front
+				ModifyQueue.Push(std::move(ModifyBuffer));
+				// Mark dirty
+				bAtomicDebugVisibleChunkDirty.store(true);
+				bAtomicVisibleChunkDirty.store(true);
 				return;
 			}
+			HelperIncrementIndex();
 		}
-#elif
-		//Load, add new
-		ChunksLookupTable.ATOMIC_remove_and_insert(OldLocation, NewLocation, NewState);
-#endif
-		//TODO: Fill pool
-		MemoryPool[ReservedMemoryPoolIndex] = std::move(NewItem);
-		MemoryPool.Release(ReservedMemoryPoolIndex);
-		//Mark dirty
-		bAtomicDebugVisibleChunkDirty.store(true);
-		bAtomicVisibleChunkDirty.store(true);
+		//Fail
+		ChunksLookupTable.ATOMIC_remove(NewLocation); //Remove new reserved location
 	}
-	inline void PushChunk(FChunk&& NewChunk, uint32_t ReservedMemoryPoolIndex, const FImportanceComputeInfo& CameraInfo)
+	inline void PushChunk(FChunk&& NewChunk, uint32_t ThreadId, const FImportanceComputeInfo& CameraInfo, const float ChunkSize)
 	{
-		PushToPool<FChunk>(MaxChunkCount, AtomicChunksPool, ReservedMemoryPoolIndex, std::move(NewChunk), EChunkState::NonEmpty, CameraInfo);
+		PushToPool<FChunk>(MaxChunkCount, TLSChunkPool[ThreadId], *TLSChunkPoolModifyBufferQueue[ThreadId], MaxChunkCheckTimes, std::move(NewChunk), EChunkState::NonEmpty, CameraInfo, ChunkSize);
 	}
-	inline void PushEmptyChunk(FEmptyChunk&& NewEmptyChunk, uint32_t ReservedEmptyMemoryPoolIndex, const FImportanceComputeInfo& CameraInfo)
+	inline void PushEmptyChunk(FEmptyChunk&& NewEmptyChunk, uint32_t ThreadId, const FImportanceComputeInfo& CameraInfo, const float ChunkSize)
 	{
-		PushToPool<FEmptyChunk>(MaxEmptyChunkCount, AtomicEmptyChunksPool, ReservedEmptyMemoryPoolIndex, std::move(NewEmptyChunk), EChunkState::Empty, CameraInfo);
+		PushToPool<FEmptyChunk>(MaxEmptyChunkCount, TLSChunkPool[ThreadId], *TLSChunkPoolModifyBufferQueue[ThreadId], MaxEmptyChunkCheckTimes, std::move(NewEmptyChunk), EChunkState::Empty, CameraInfo, ChunkSize);
 	}
 	//
-	std::vector<FGPUSimpleInstanceData> GetDebugInstanceInfo(const FVoxelSceneConfig& VoxelSceneConfig) const
+	//
+	void GatherDebugInstanceInfo(const FVoxelSceneConfig& VoxelSceneConfig)
+	{
+		for (uint32_t i = 0; i < ThreadCount; i++)
+		{
+			TLSChunkPoolRead[i].ConsumeQueue(*TLSChunkPoolModifyBufferQueue[i]);
+		}
+	}
+	void UploadDebugInstanceInfo(lvk::IContext* LVKContext, const FVoxelSceneConfig& VoxelSceneConfig)
+	{
+		for (uint32_t i = 0; i < ThreadCount; i++)
+		{
+			LVKContext->upload(DebugInstanceBuffer, TLSChunkPoolRead[i].GPUInstanceData.data(), 
+				sizeof(FGPUSimpleInstanceData) * TLSChunkPoolRead[i].GPUInstanceData.size(), 
+				sizeof(FGPUSimpleInstanceData) * TLSChunkPoolRead[i].GPUInstanceOffset);
+		}
+	}
+	void UpdateDebugVisibleChunk(lvk::IContext* LVKContext, const FVoxelSceneConfig& VoxelSceneConfig)
+	{
+		if (!bDebugGatherChunk)
+		{
+			return;
+		}
+		bool Expected = true;
+		if (bAtomicDebugVisibleChunkDirty.compare_exchange_strong(Expected, false))// Compare, Release
+		{
+			DebugTimerSet.Start(DebugMarkGatherVisibleChunk);
+			GatherDebugInstanceInfo(VoxelSceneConfig);
+			DebugTimerSet.Record(DebugMarkGatherVisibleChunk);
+
+			DebugTimerSet.Start(DebugMarkUploadVisibleChunk);
+			UploadDebugInstanceInfo(LVKContext, VoxelSceneConfig);
+			DebugTimerSet.Record(DebugMarkUploadVisibleChunk);
+		}
+	}
+
+	/*
+	std::vector<FGPUSimpleInstanceData> GatherDebugInstanceInfo(const FVoxelSceneConfig& VoxelSceneConfig) const
 	{
 		std::vector<FGPUSimpleInstanceData> Result;
 		//
@@ -258,7 +498,7 @@ public:
 		if (bAtomicDebugVisibleChunkDirty.compare_exchange_strong(Expected, false))// Compare, Release
 		{
 			DebugTimerSet.Start(DebugMarkGatherVisibleChunk);
-			DebugInstanceBufferCPU = GetDebugInstanceInfo(VoxelSceneConfig);
+			DebugInstanceBufferCPU = GatherDebugInstanceInfo(VoxelSceneConfig);
 			DebugTimerSet.Record(DebugMarkGatherVisibleChunk);
 			//
 			CurrentDebugDrawInstanceCount = (uint32_t)DebugInstanceBufferCPU.size();
@@ -272,4 +512,5 @@ public:
 			DebugTimerSet.Record(DebugMarkUploadVisibleChunk);
 		}
 	}
+	*/
 };

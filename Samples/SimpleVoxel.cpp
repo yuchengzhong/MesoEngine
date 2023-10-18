@@ -107,6 +107,9 @@ public:
     //Shape
     FCubeHolder CubeMesh;
 
+    //Multi thread
+    uint32_t ThreadCount = 4;
+
     //High level manager
     FBlockPoolHolder BlockPool;
     FChunkManage ChunkManager;
@@ -122,7 +125,9 @@ public:
     void InitializeBegin() override
     {
         VoxelWindowsInstance::InitializeBegin();
-        ChunkManager.Initialize(LVKContext.get(), VoxelSceneConfig, [](ivec3 StartLocation, float BlockSize, unsigned char ChunkResolution, uint32_t MipmapLevel)
+        uint32_t MaxCPUCoreNum = boost::thread::hardware_concurrency();
+        ThreadCount = std::min(std::max(MaxCPUCoreNum - 4u, 1u), VoxelSceneConfig.MaxUnsyncedLoadChunkCount);
+        ChunkManager.Initialize(LVKContext.get(), ThreadCount, VoxelSceneConfig, [](ivec3 StartLocation, float BlockSize, unsigned char ChunkResolution, uint32_t MipmapLevel)
             {
                 return FGeneratorHelper::TestGenerator(StartLocation, BlockSize, ChunkResolution, MipmapLevel);
             });
