@@ -302,12 +302,12 @@ public:
 
 				if (ChunkPool.ChunksLookupTable.ATOMIC_not_contains_insert(CurrentDesiredChunkLocation, EChunkState::Computing, OldState)) //Not found
 				{
+					BatchedChunkLocations.push_back(CurrentDesiredChunkLocation);
+					BatchedMipmapLevels.push_back(MipmapLevel);
 					if (CurrentSyncedChunkCount >= VoxelSceneConfig.MaxSyncedLoadChunkCount && CurrentMultiThreadChunkCount >= VoxelSceneConfig.MaxUnsyncedLoadChunkCount) //If reach limit
 					{
 						goto FailedToDispatchBatch;
 					}
-					BatchedChunkLocations.push_back(CurrentDesiredChunkLocation);
-					BatchedMipmapLevels.push_back(MipmapLevel);
 					if (CurrentSyncedChunkCount < (VoxelSceneConfig.MaxSyncedLoadChunkCount))
 					{
 						if (BatchedChunkLocations.size() >= VoxelSceneConfig.ChunkTaskPerCore)
@@ -349,7 +349,11 @@ public:
 					}
 				FailedToDispatchBatch:
 					{
-						ChunkPool.ChunksLookupTable.ATOMIC_remove(CurrentDesiredChunkLocation);// Modify back
+						//ChunkPool.ChunksLookupTable.ATOMIC_remove(CurrentDesiredChunkLocation);// Modify back
+						for (auto CurrentLoadedDesiredChunkLocation : BatchedChunkLocations)
+						{
+							ChunkPool.ChunksLookupTable.ATOMIC_remove(CurrentLoadedDesiredChunkLocation);
+						}
 						break;
 					}
 				}
