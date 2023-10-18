@@ -26,7 +26,8 @@ struct FVoxelSceneConfig
 	uint32_t ViewForwardLoadChunkSize = 16;
 	uint32_t ViewBackwardLoadChunkSize = 4;
 	uint32_t MaxSyncedLoadChunkCount = 0;
-	uint32_t MaxUnsyncedLoadChunkCount = 64;
+	uint32_t MaxUnsyncedLoadChunkCount = 256; //will not exceed physical cpu cores
+	uint32_t ChunkTaskPerCore = 8; //Chunk batch
 	float ViewChunkAngle = 120.0f;//should = fov
 
 	float GetChunkSize() const
