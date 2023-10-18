@@ -394,7 +394,7 @@ public:
 						.Position = {ChunkSize,ChunkSize,ChunkSize},
 						.ChunkLocation = NewLocation,
 						.Scale = ChunkSize * 0.1f,
-						.Marker = (std::is_same_v<T, FChunk>) ? 0.5f : 0.0f,
+						.Marker = (std::is_same_v<T, FChunk>) ? 1.0f : 0.0f,
 					};
 				ModifyBuffer.ModifyGPUInstance = NewInstanceData; //copy
 				ModifyBuffer.ModifyGPUInstanceIndex = MemoryPool.CurrentGPUInstanceIndex;

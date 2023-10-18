@@ -27,6 +27,7 @@ struct VoxelInstanceInitialConfig
 	bool bInitialFullScreen = true;
 
 	bool bWindowsResizeable = true;
+	bool bShowDemoWindow = true;
 
 	FVoxelSceneConfig VoxelSceneConfig;
 };
@@ -117,6 +118,8 @@ public:
 	virtual void RunInstance();
 
 	virtual void ProcessRenderImgui();
+	//IMG
+	bool bShowDemoWindow = true;
 	virtual void SubprocessRenderImguiInitialize();
 	virtual void SubprocessRenderImguiDemoWindow();
 	virtual void SubprocessRenderImguiHints();

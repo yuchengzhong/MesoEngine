@@ -35,6 +35,7 @@ void VoxelWindowsInstance::Initialize(const VoxelInstanceInitialConfig& InitialC
         LVKNumSamplesMSAA = InitialConfig.kNumSamplesMSAA;
         bUseHDRForFinalBuffer = InitialConfig.bUseHDRForFinalBuffer;
         bWindowsResizeable = InitialConfig.bWindowsResizeable;
+        bShowDemoWindow = InitialConfig.bShowDemoWindow;
 
 #ifndef __APPLE__
         LVKNumSamplesMSAA = std::min(LVKNumSamplesMSAA, 8u);
@@ -456,7 +457,10 @@ void VoxelWindowsInstance::SubprocessRenderImguiInitialize()
 
 void VoxelWindowsInstance::SubprocessRenderImguiDemoWindow()
 {
-    ImGui::ShowDemoWindow();
+    if (bShowDemoWindow)
+    {
+        ImGui::ShowDemoWindow();
+    }
 }
 
 void VoxelWindowsInstance::SubprocessRenderImguiHints()

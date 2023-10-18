@@ -126,7 +126,7 @@ public:
     {
         VoxelWindowsInstance::InitializeBegin();
         uint32_t MaxCPUCoreNum = boost::thread::hardware_concurrency();
-        ThreadCount = std::min(std::max(MaxCPUCoreNum - 4u, 1u), VoxelSceneConfig.MaxUnsyncedLoadChunkCount);
+        ThreadCount = std::min(std::max(MaxCPUCoreNum - 2u, 1u), VoxelSceneConfig.MaxUnsyncedLoadChunkCount);
         ChunkManager.Initialize(LVKContext.get(), ThreadCount, VoxelSceneConfig, [](ivec3 StartLocation, float BlockSize, unsigned char ChunkResolution, uint32_t MipmapLevel)
             {
                 return FGeneratorHelper::TestGenerator(StartLocation, BlockSize, ChunkResolution, MipmapLevel);
@@ -299,7 +299,8 @@ int main(int argc, char* argv[])
         .bPreferIntegratedGPU = kPreferIntegratedGPU,
         .kNumBufferedFrames = kNumBufferedFrames,
         .kNumSamplesMSAA = kNumSamplesMSAA,
-        .bInitialFullScreen = false
+        .bInitialFullScreen = false,
+        .bShowDemoWindow = false
         });
 
     // Main loop
