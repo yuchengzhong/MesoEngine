@@ -22,6 +22,7 @@
 #include "Thread/AtomicVector.h"
 #include "Thread/MemoryPool.h"
 #include "Thread/ThreadSafeQueue.h"
+#include "Thread/DoubleBufferQueue.h"
 
 #include <functional>
 #include <climits>
@@ -89,7 +90,7 @@ public:
 class FTLSChunkPool
 {
 public:
-	using FModifyBufferQueue = TThreadSafeQueue<FTLSModifyBuffer>;
+	using FModifyBufferQueue = TDoubleBufferQueue<FTLSModifyBuffer>;
 	std::vector<FChunk> ChunksPool;
 	uint32_t CurrentChunkIndex = 0;
 
@@ -111,6 +112,8 @@ public:
 	uint32_t EmptyChunkCountOffset = 0;
 	uint32_t BlockCountOffset = 0;
 	uint32_t GPUInstanceOffset = 0;
+
+	uint32_t SubCurrentDebugDrawInstanceCount = 0;
 	FTLSChunkPool()
 	{
 
@@ -212,7 +215,7 @@ public:
 	FOctahedronHolder OctahedronMesh;
 
 	lvk::VertexInput DescDebugInstance;
-	std::atomic<uint32_t> CurrentDebugDrawInstanceCount = 0;
+	uint32_t CurrentDebugDrawInstanceCount = 0;
 
 	inline static uint32_t LockOffset = 63;
 	// Debug
@@ -380,10 +383,10 @@ public:
 				{
 					continue;
 				}
-				CurrentDebugDrawInstanceCount--;
+				MemoryPool.SubCurrentDebugDrawInstanceCount--;
 			}
 			{
-				CurrentDebugDrawInstanceCount++;
+				MemoryPool.SubCurrentDebugDrawInstanceCount++;
 				ChunksLookupTable.ATOMIC_remove_and_insert(OldLocation, NewLocation, NewState);
 				//
 				FGPUSimpleInstanceData NewInstanceData =
@@ -432,11 +435,14 @@ public:
 	}
 	//
 	//
-	void GatherDebugInstanceInfo(const FVoxelSceneConfig& VoxelSceneConfig)
+	void GatherDebugInstanceInfo(const FVoxelSceneConfig& VoxelSceneConfig) // this can also be done in multi-thread
 	{
+		CurrentDebugDrawInstanceCount = 0;
 		for (uint32_t i = 0; i < ThreadCount; i++)
 		{
+			TLSChunkPoolModifyBufferQueue[i]->Swap();
 			TLSChunkPoolRead[i].ConsumeQueue(*TLSChunkPoolModifyBufferQueue[i]);
+			CurrentDebugDrawInstanceCount += TLSChunkPool[i].SubCurrentDebugDrawInstanceCount;
 		}
 	}
 	void UploadDebugInstanceInfo(lvk::IContext* LVKContext, const FVoxelSceneConfig& VoxelSceneConfig)
@@ -466,51 +472,4 @@ public:
 			DebugTimerSet.Record(DebugMarkUploadVisibleChunk);
 		}
 	}
-
-	/*
-	std::vector<FGPUSimpleInstanceData> GatherDebugInstanceInfo(const FVoxelSceneConfig& VoxelSceneConfig) const
-	{
-		std::vector<FGPUSimpleInstanceData> Result;
-		//
-		std::map<ivec3, EChunkState, FIVec3Comparator> ChunksLookupTableCopy = ChunksLookupTable.ATOMIC_get_copy();
-		//
-		Result.reserve(ChunksLookupTableCopy.size());
-		float ChunkSize = VoxelSceneConfig.GetChunkSize();
-		for (const auto& Chunk : ChunksLookupTableCopy)
-		{
-			Result.push_back(
-				{
-					.Position = {ChunkSize,ChunkSize,ChunkSize},
-					.ChunkLocation = Chunk.first,
-					.Scale = ChunkSize * 0.1f,
-					.Marker = 0.0,
-				});
-		}
-		return Result;
-	}
-	void UpdateDebugVisibleChunk(lvk::IContext* LVKContext, const FVoxelSceneConfig& VoxelSceneConfig)
-	{
-		if (!bDebugGatherChunk)
-		{
-			return;
-		}
-		bool Expected = true;
-		if (bAtomicDebugVisibleChunkDirty.compare_exchange_strong(Expected, false))// Compare, Release
-		{
-			DebugTimerSet.Start(DebugMarkGatherVisibleChunk);
-			DebugInstanceBufferCPU = GatherDebugInstanceInfo(VoxelSceneConfig);
-			DebugTimerSet.Record(DebugMarkGatherVisibleChunk);
-			//
-			CurrentDebugDrawInstanceCount = (uint32_t)DebugInstanceBufferCPU.size();
-			if (CurrentDebugDrawInstanceCount > VoxelSceneConfig.MaxEmptyChunkCount + VoxelSceneConfig.MaxChunkCount)
-			{
-				printf("UpdateDebugVisibleChunk: CurrentDebugDrawInstanceCount larger than (MaxEmptyChunkCount + MaxChunkCount).\n");
-				CurrentDebugDrawInstanceCount = VoxelSceneConfig.MaxEmptyChunkCount + VoxelSceneConfig.MaxChunkCount;
-			}
-			DebugTimerSet.Start(DebugMarkUploadVisibleChunk);
-			LVKContext->upload(DebugInstanceBuffer, DebugInstanceBufferCPU.data(), sizeof(FGPUSimpleInstanceData) * CurrentDebugDrawInstanceCount);
-			DebugTimerSet.Record(DebugMarkUploadVisibleChunk);
-		}
-	}
-	*/
 };

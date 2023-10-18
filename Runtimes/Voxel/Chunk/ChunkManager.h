@@ -193,6 +193,33 @@ public:
 			ChunkPool.PushChunk(std::move(NewChunk), ThreadId, CameraInfo, VoxelSceneConfig.GetChunkSize());
 		}
 	}
+	void MultiThreadGeneratorBatched(const std::vector<ivec3> CurrentDesiredChunkLocations, const std::vector<uint32_t> MipmapLevels, const FImportanceComputeInfo& CameraInfo, const FVoxelSceneConfig& VoxelSceneConfig)
+	{
+		const uint32_t ThreadId = GeneratorThreadPool.GetCurrentThreadID();
+		if (ThreadId > GeneratorThreadPool.GetSize())
+		{
+			printf("Unknown thread id %d, max %d\n", ThreadId, GeneratorThreadPool.GetSize());
+		}
+		for (uint32_t i=0;i< CurrentDesiredChunkLocations.size();i++)
+		{
+			const ivec3 CurrentDesiredChunkLocation = CurrentDesiredChunkLocations[i];
+			const uint32_t MipmapLevel = MipmapLevels[i];
+			FChunk NewChunk = Generator(CurrentDesiredChunkLocation, VoxelSceneConfig.BlockSize, VoxelSceneConfig.ChunkResolution, MipmapLevel);
+			NewChunk.ChunkLocation = CurrentDesiredChunkLocation;// just make sure
+			bool bChunkEmpty = NewChunk.Blocks.size() <= 0;
+			if (bChunkEmpty) //Empty
+			{
+				FEmptyChunk NewEmptyChunk;
+				NewEmptyChunk.ChunkLocation = CurrentDesiredChunkLocation;//Just ensure
+
+				ChunkPool.PushEmptyChunk(std::move(NewEmptyChunk), ThreadId, CameraInfo, VoxelSceneConfig.GetChunkSize());
+			}
+			else
+			{
+				ChunkPool.PushChunk(std::move(NewChunk), ThreadId, CameraInfo, VoxelSceneConfig.GetChunkSize());
+			}
+		}
+	}
 	void UpdateLoadingQueue(lvk::IContext* LVKContext, ivec3 CameraChunkLocation, vec3 CameraForwardVector, const FVoxelSceneConfig& VoxelSceneConfig)
 	{
 		uint32_t CurrentSyncedChunkCount = 0;
@@ -209,77 +236,126 @@ public:
 			.CameraChunk = CameraChunkLocation , 
 			.CameraForwardVector = CameraForwardVector 
 		};
-		// The chunk logic
-		// We firstly get the unloaded chunks, then we call generator for computing it
-		// We atomically set this chunk to "Computing" state to avoid over-computing
-		// After the compute is finish, we put it into pool. The pool using thread storage so it can be seen as a thread-private-lru
-		//
-		for (uint32_t i = 0; i < TotalNum; i++)
+		if (VoxelSceneConfig.ChunkTaskPerCore <= 1)
 		{
-			ivec3 CurrentDesiredChunkLocation = DesiredToLoadChunkLocations.front();
-			uint32_t MipmapLevel = 0;
-			EChunkState OldState = EChunkState::Computing;
-			if (ChunkPool.ChunksLookupTable.ATOMIC_not_contains_insert(CurrentDesiredChunkLocation, EChunkState::Computing, OldState)) //Not found
+			for (uint32_t i = 0; i < TotalNum; i++)
 			{
-				if (CurrentSyncedChunkCount >= VoxelSceneConfig.MaxSyncedLoadChunkCount && CurrentMultiThreadChunkCount >= VoxelSceneConfig.MaxUnsyncedLoadChunkCount)//If reach limit
+				ivec3 CurrentDesiredChunkLocation = DesiredToLoadChunkLocations.front();
+				uint32_t MipmapLevel = 0;
+				EChunkState OldState = EChunkState::Computing;
+				if (ChunkPool.ChunksLookupTable.ATOMIC_not_contains_insert(CurrentDesiredChunkLocation, EChunkState::Computing, OldState)) //Not found
 				{
-					goto FailedToDispatch;
-				}
-				if (CurrentSyncedChunkCount < (VoxelSceneConfig.MaxSyncedLoadChunkCount))
-				{
-					// Main thread load
-					Timer.Start();
-					MultiThreadGenerator(CurrentDesiredChunkLocation, MipmapLevel, CameraInfo, VoxelSceneConfig);
-					CurrentSyncedChunkCount++;
-					DeltaSyncedTime += Timer.Step();
-					DesiredToLoadChunkLocations.pop();
-				}
-				else // Multi-thread load
-				{
-					//Dispatch MultiThreadGenerator
-					Timer.Start();
-					auto BoundFunction = boost::bind(&FChunkManage::MultiThreadGenerator, this, _1, _2, _3, _4);
-					std::function<void()> TaskFunc = boost::bind(BoundFunction, CurrentDesiredChunkLocation, MipmapLevel, CameraInfo, VoxelSceneConfig);
-					bool Success = GeneratorThreadPool.EnqueueForward(TaskFunc);
-					DeltaMultiThreadTime += Timer.Step();
-					if (Success)
-					{
-						CurrentMultiThreadChunkCount++;
-						DesiredToLoadChunkLocations.pop();
-					}
-					else
+					if (CurrentSyncedChunkCount >= VoxelSceneConfig.MaxSyncedLoadChunkCount && CurrentMultiThreadChunkCount >= VoxelSceneConfig.MaxUnsyncedLoadChunkCount)//If reach limit
 					{
 						goto FailedToDispatch;
 					}
+					if (CurrentSyncedChunkCount < (VoxelSceneConfig.MaxSyncedLoadChunkCount))
+					{
+						// Main thread load
+						Timer.Start();
+						MultiThreadGenerator(CurrentDesiredChunkLocation, MipmapLevel, CameraInfo, VoxelSceneConfig);
+						CurrentSyncedChunkCount++;
+						DeltaSyncedTime += Timer.Step();
+						DesiredToLoadChunkLocations.pop();
+						continue;
+					}
+					else // Multi-thread load
+					{
+						//Dispatch MultiThreadGenerator
+						Timer.Start();
+						auto BoundFunction = boost::bind(&FChunkManage::MultiThreadGenerator, this, _1, _2, _3, _4);
+						std::function<void()> TaskFunc = boost::bind(BoundFunction, CurrentDesiredChunkLocation, MipmapLevel, CameraInfo, VoxelSceneConfig);
+						bool Success = GeneratorThreadPool.EnqueueForward(TaskFunc);
+						DeltaMultiThreadTime += Timer.Step();
+						if (Success)
+						{
+							CurrentMultiThreadChunkCount++;
+							DesiredToLoadChunkLocations.pop();
+							continue;
+						}
+						else
+						{
+							goto FailedToDispatch;
+						}
+					}
+				FailedToDispatch:
+					{
+						ChunkPool.ChunksLookupTable.ATOMIC_remove(CurrentDesiredChunkLocation);// Modify back
+						break;
+					}
 				}
-			FailedToDispatch:
+				else//Already loaded
 				{
-					ChunkPool.ChunksLookupTable.ATOMIC_remove(CurrentDesiredChunkLocation);// Modify back
-					break;
+					DesiredToLoadChunkLocations.pop();
 				}
 			}
-			else//Already loaded
+		}
+		else
+		{
+			std::vector<ivec3> BatchedChunkLocations;
+			std::vector<uint32_t> BatchedMipmapLevels;
+			for (uint32_t i = 0; i < TotalNum; i++)
 			{
-				//TODO: Update blocks
-				// We got visible chunks here, if a chunk is loaded, we can get every block's info
-				// If the block is not loaded into continuous memory, we can try load it
-				// Loading it will possibily overwrite the ones, so we need a importance function for sorting the importance of it
-				// We load chunks and blocks into continous memory, and we are not gonna modify it any more in this frame
-				// We need another tree to decide whether the chunk is loaded into continous memory or not
-				// We need another tree inside the above tree to decide whether the block is loaded or not
-				// Also, do we need multi threading??????????????????
-				// If needed, do we need sync?
-				// Acceptable cost: 1 ms <<<<<<<<<<<<<<<<<<<<<
-				// LRU is not praticle for multithreading
-				DesiredToLoadChunkLocations.pop();
-				if (OldState == EChunkState::Empty)
+				ivec3 CurrentDesiredChunkLocation = DesiredToLoadChunkLocations.front();
+				uint32_t MipmapLevel = 0;
+				EChunkState OldState = EChunkState::Computing;
+
+				if (ChunkPool.ChunksLookupTable.ATOMIC_not_contains_insert(CurrentDesiredChunkLocation, EChunkState::Computing, OldState)) //Not found
 				{
+					if (CurrentSyncedChunkCount >= VoxelSceneConfig.MaxSyncedLoadChunkCount && CurrentMultiThreadChunkCount >= VoxelSceneConfig.MaxUnsyncedLoadChunkCount) //If reach limit
+					{
+						goto FailedToDispatchBatch;
+					}
+					BatchedChunkLocations.push_back(CurrentDesiredChunkLocation);
+					BatchedMipmapLevels.push_back(MipmapLevel);
+					if (CurrentSyncedChunkCount < (VoxelSceneConfig.MaxSyncedLoadChunkCount))
+					{
+						if (BatchedChunkLocations.size() >= VoxelSceneConfig.ChunkTaskPerCore)
+						{
+							// Main thread load
+							Timer.Start();
+							MultiThreadGeneratorBatched(BatchedChunkLocations, BatchedMipmapLevels, CameraInfo, VoxelSceneConfig);
+							BatchedChunkLocations.clear();
+							BatchedMipmapLevels.clear();
+							DeltaSyncedTime += Timer.Step();
+						}
+						CurrentSyncedChunkCount++;
+						DesiredToLoadChunkLocations.pop();
+						continue;
+					}
+					else // Multi-thread load
+					{
+						if (BatchedChunkLocations.size() >= VoxelSceneConfig.ChunkTaskPerCore)
+						{
+							//Dispatch MultiThreadGenerator
+							Timer.Start();
+							auto BoundFunction = boost::bind(&FChunkManage::MultiThreadGeneratorBatched, this, _1, _2, _3, _4);
+							std::function<void()> TaskFunc = boost::bind(BoundFunction, BatchedChunkLocations, BatchedMipmapLevels, CameraInfo, VoxelSceneConfig);
+							bool Success = GeneratorThreadPool.EnqueueForward(TaskFunc);
+							DeltaMultiThreadTime += Timer.Step();
+							if (Success)
+							{
+								BatchedChunkLocations.clear();
+								BatchedMipmapLevels.clear();
+							}
+							else
+							{
+								goto FailedToDispatchBatch;
+							}
+						}
+						CurrentMultiThreadChunkCount++;
+						DesiredToLoadChunkLocations.pop();
+						continue;
+					}
+				FailedToDispatchBatch:
+					{
+						ChunkPool.ChunksLookupTable.ATOMIC_remove(CurrentDesiredChunkLocation);// Modify back
+						break;
+					}
 				}
-				else if (OldState == EChunkState::NonEmpty)
+				else //Already loaded
 				{
-				}
-				else
-				{
+					DesiredToLoadChunkLocations.pop();
 				}
 			}
 		}
@@ -437,7 +513,7 @@ public:
 
 		ImGui::Text("Loaded Chunk:");
 		ImGui::SameLine(Offset);
-		ImGui::Text("%d", ChunkPool.CurrentDebugDrawInstanceCount.load());
+		ImGui::Text("%d", ChunkPool.CurrentDebugDrawInstanceCount);
 
 		ImGui::Text("Newly Added Visible Chunk:");
 		ImGui::SameLine(Offset);
