@@ -84,10 +84,8 @@ public:
 	{
 		GeneratorThreadPool.WaitForTasksToComplete();
 	}
-	void Initialize(lvk::IContext* LVKContext, const FVoxelSceneConfig& VoxelSceneConfig, GeneratorType Generator_)
+	void Initialize(lvk::IContext* LVKContext, const uint32_t& ThreadCount, const FVoxelSceneConfig& VoxelSceneConfig, GeneratorType Generator_)
 	{
-		uint32_t MaxCPUCoreNum = boost::thread::hardware_concurrency();
-		const uint32_t ThreadCount = std::min(std::max(MaxCPUCoreNum - 4u, 1u), VoxelSceneConfig.MaxUnsyncedLoadChunkCount);
 		GeneratorThreadPool.Initialize(ThreadCount);// leave some cores for youtube
 		ChunkPool.Initialize(LVKContext, VoxelSceneConfig, ThreadCount);
 		//
@@ -182,30 +180,17 @@ public:
 		}
 		FChunk NewChunk = Generator(CurrentDesiredChunkLocation, VoxelSceneConfig.BlockSize, VoxelSceneConfig.ChunkResolution, MipmapLevel);
 		NewChunk.ChunkLocation = CurrentDesiredChunkLocation;// just make sure
-		uint32_t ReservedMemoryPoolIndex = 0;
 		bool bChunkEmpty = NewChunk.Blocks.size() <= 0;
 		if (bChunkEmpty) //Empty
 		{
 			FEmptyChunk NewEmptyChunk;
 			NewEmptyChunk.ChunkLocation = CurrentDesiredChunkLocation;//Just ensure
 
-			bool bMemoryPoolValid = ChunkPool.AtomicEmptyChunksPool.Acquire(ReservedMemoryPoolIndex, ThreadId);
-			if (!bMemoryPoolValid)
-			{
-				ChunkPool.ChunksLookupTable.ATOMIC_remove(CurrentDesiredChunkLocation);
-				return;
-			}
-			ChunkPool.PushEmptyChunk(std::move(NewEmptyChunk), ReservedMemoryPoolIndex, CameraInfo);
+			ChunkPool.PushEmptyChunk(std::move(NewEmptyChunk), ThreadId, CameraInfo, VoxelSceneConfig.GetChunkSize());
 		}
 		else
 		{
-			bool bMemoryPoolValid = ChunkPool.AtomicChunksPool.Acquire(ReservedMemoryPoolIndex, ThreadId);
-			if (!bMemoryPoolValid)
-			{
-				ChunkPool.ChunksLookupTable.ATOMIC_remove(CurrentDesiredChunkLocation);
-				return;
-			}
-			ChunkPool.PushChunk(std::move(NewChunk), ReservedMemoryPoolIndex, CameraInfo);
+			ChunkPool.PushChunk(std::move(NewChunk), ThreadId, CameraInfo, VoxelSceneConfig.GetChunkSize());
 		}
 	}
 	void UpdateLoadingQueue(lvk::IContext* LVKContext, ivec3 CameraChunkLocation, vec3 CameraForwardVector, const FVoxelSceneConfig& VoxelSceneConfig)
@@ -332,7 +317,7 @@ public:
 
 				Buffer.cmdPushConstants(PushConstantData);
 				Buffer.cmdBindIndexBuffer(ChunkPool.OctahedronMesh.IndexBuffer, lvk::IndexFormat_UI16);
-				Buffer.cmdDrawIndexed(ChunkPool.OctahedronMesh.GetIndexSize(), ChunkPool.CurrentDebugDrawInstanceCount);
+				Buffer.cmdDrawIndexed(ChunkPool.OctahedronMesh.GetIndexSize(), ChunkPool.MaxChunkCount + ChunkPool.MaxEmptyChunkCount);
 				Buffer.cmdPopDebugGroupLabel();
 			}
 			Buffer.cmdEndRendering();
@@ -343,12 +328,13 @@ public:
 	//
 	std::vector<FGPUChunkData> GatherChunkInfo()
 	{
-		std::vector<FGPUChunkData> Result = 
+		std::vector<FGPUChunkData> Result = {};
+			/*
 			ChunkPool.AtomicChunksPool.GetValidItem<FGPUChunkData>(
 				[](const FChunk& Chunk)
 				{
 					return FGPUChunkData{ .ChunkLocation = Chunk.ChunkLocation };
-				});
+				});*/
 		/*
 		for (uint32_t i = 0; i < ChunkPool.AtomicChunksPool.Size; i++)
 		{
@@ -451,7 +437,7 @@ public:
 
 		ImGui::Text("Loaded Chunk:");
 		ImGui::SameLine(Offset);
-		ImGui::Text("%d", ChunkPool.CurrentDebugDrawInstanceCount);
+		ImGui::Text("%d", ChunkPool.CurrentDebugDrawInstanceCount.load());
 
 		ImGui::Text("Newly Added Visible Chunk:");
 		ImGui::SameLine(Offset);

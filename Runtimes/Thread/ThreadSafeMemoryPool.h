@@ -64,19 +64,17 @@ public:
     }
     T& operator[](uint32_t Index)
     {
-        if (Index >= Size)
-        {
-            throw std::out_of_range("Index out of range");
-        }
+#if not defined(NDEBUG)
+        assert(Index < Size && "Index out of range");
+#endif
         return Pool[Index];
     }
 
     const T& operator[](uint32_t Index) const
     {
-        if (Index >= Size)
-        {
-            throw std::out_of_range("Index out of range");
-        }
+#if not defined(NDEBUG)
+        assert(Index < Size && "Index out of range");
+#endif
         return Pool[Index];
     }
     template<typename ReturnType>

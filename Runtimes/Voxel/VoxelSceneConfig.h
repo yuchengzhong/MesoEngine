@@ -15,8 +15,12 @@ struct FVoxelSceneConfig
 	unsigned char ChunkResolution = 16;
 	uint32_t MaxBlockCount = 65536;
 	uint32_t MaxVolumeCount = 65536;
-	uint32_t MaxChunkCount = 4096;
-	uint32_t MaxEmptyChunkCount = 8192 * 4;
+	uint32_t MaxChunkCount = 8192 * 2;
+	uint32_t MaxEmptyChunkCount = 8192 * 16;
+
+	uint32_t MaxChunkCheckTimes = 16;
+	uint32_t MaxEmptyChunkCheckTimes = 4;
+	uint32_t MaxBlockCheckTimes = 4;
 
 	uint32_t BakeVisibilityViewNum = 64;
 	uint32_t ViewForwardLoadChunkSize = 16;

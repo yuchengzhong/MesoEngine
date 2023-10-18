@@ -16,3 +16,10 @@ struct FBlock
 	u8vec3 BlockLocation; //Generator
 	uint32_t VolumeIndex; //This refer to GPU Volume virtual index
 };
+
+struct FGPUBlock
+{
+	uint32_t ChunkIndex; //This refer to GPU chunk ssbo
+	u8vec3 BlockLocation;
+	uint32_t VolumeIndex; //This refer to GPU Volume virtual index
+};

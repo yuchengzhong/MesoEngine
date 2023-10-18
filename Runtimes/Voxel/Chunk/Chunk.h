@@ -29,12 +29,17 @@ struct FTraceInfomation
 	uint32_t Priority;
 };
 
+struct FGPUChunk
+{
+	ivec3 ChunkLocation = { INT_MAX, INT_MAX, INT_MAX };
+};
 struct FChunkBase 
 {
 public:
 	ivec3 ChunkLocation = { INT_MAX, INT_MAX, INT_MAX };
 public:
-	bool bIsvalid() const
+	//FChunkBase() : ChunkLocation({ INT_MAX, INT_MAX, INT_MAX }) {}
+	bool bIsValid() const
 	{
 		return ChunkLocation != ivec3{ INT_MAX, INT_MAX, INT_MAX };
 	}
