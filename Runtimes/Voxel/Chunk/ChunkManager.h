@@ -178,11 +178,11 @@ public:
 			FEmptyChunk NewEmptyChunk;
 			NewEmptyChunk.ChunkLocation = CurrentDesiredChunkLocation;//Just ensure
 
-			ChunkPool.PushEmptyChunk(std::move(NewEmptyChunk), ThreadId, CameraInfo, VoxelSceneConfig.GetChunkSize());
+			ChunkPool.PushEmptyChunk(std::move(NewEmptyChunk), ThreadId, CameraInfo, VoxelSceneConfig.GetChunkSize(), VoxelSceneConfig.ChunkOverrideMode);
 		}
 		else
 		{
-			ChunkPool.PushChunk(std::move(NewChunk), ThreadId, CameraInfo, VoxelSceneConfig.GetChunkSize());
+			ChunkPool.PushChunk(std::move(NewChunk), ThreadId, CameraInfo, VoxelSceneConfig.GetChunkSize(), VoxelSceneConfig.ChunkOverrideMode);
 		}
 	}
 	void MultiThreadGeneratorBatched(const std::vector<ivec3> CurrentDesiredChunkLocations, const std::vector<uint32_t> MipmapLevels, const FImportanceComputeInfo& CameraInfo, const FVoxelSceneConfig& VoxelSceneConfig)
@@ -204,11 +204,11 @@ public:
 				FEmptyChunk NewEmptyChunk;
 				NewEmptyChunk.ChunkLocation = CurrentDesiredChunkLocation;//Just ensure
 
-				ChunkPool.PushEmptyChunk(std::move(NewEmptyChunk), ThreadId, CameraInfo, VoxelSceneConfig.GetChunkSize());
+				ChunkPool.PushEmptyChunk(std::move(NewEmptyChunk), ThreadId, CameraInfo, VoxelSceneConfig.GetChunkSize(), VoxelSceneConfig.ChunkOverrideMode);
 			}
 			else
 			{
-				ChunkPool.PushChunk(std::move(NewChunk), ThreadId, CameraInfo, VoxelSceneConfig.GetChunkSize());
+				ChunkPool.PushChunk(std::move(NewChunk), ThreadId, CameraInfo, VoxelSceneConfig.GetChunkSize(), VoxelSceneConfig.ChunkOverrideMode);
 			}
 		}
 	}

@@ -8,6 +8,15 @@ using glm::ivec4;
 using glm::u8vec3;
 using glm::u8vec4;
 
+
+enum class EChunkOverrideMode : uint8_t
+{
+	FindLess = 1 << 0, // fastest
+	FindMin = 1 << 1, // mild
+	OverrideMin = 1 << 2, //slowest, worst
+};
+
+
 struct FVoxelSceneConfig
 {
 	unsigned char BlockResolution = 8; //This won't change basically
@@ -18,8 +27,8 @@ struct FVoxelSceneConfig
 	uint32_t MaxChunkCount = 8192 * 2;
 	uint32_t MaxEmptyChunkCount = 8192 * 16;
 
-	uint32_t MaxChunkCheckTimes = 64;
-	uint32_t MaxEmptyChunkCheckTimes = 64;
+	uint32_t MaxChunkCheckTimes = 16;
+	uint32_t MaxEmptyChunkCheckTimes = 16;
 	uint32_t MaxBlockCheckTimes = 4;
 
 	uint32_t BakeVisibilityViewNum = 256;
@@ -28,6 +37,7 @@ struct FVoxelSceneConfig
 	uint32_t MaxSyncedLoadChunkCount = 0;
 	uint32_t MaxUnsyncedLoadChunkCount = 256; //will not exceed physical cpu cores
 	uint32_t ChunkTaskPerCore = 8; //Chunk batch
+	EChunkOverrideMode ChunkOverrideMode = EChunkOverrideMode::FindMin;// 
 	float ViewChunkAngle = 120.0f;//should = fov
 
 	float GetChunkSize() const
