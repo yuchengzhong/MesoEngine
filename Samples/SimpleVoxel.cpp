@@ -253,7 +253,7 @@ public:
     }
     void SubprocessRenderRuntimeInfo()
     {
-        ImVec2 NewWindowsPosition = ImVec2(50, 200);
+        ImVec2 NewWindowsPosition = ImVec2(50, 175);
         const float Offset = 200.0f;
         ImGui::SetNextWindowPos(NewWindowsPosition);
         ImGui::PushStyleColor(ImGuiCol_WindowBg, FColorHelper::GetBackgroundRed() );
