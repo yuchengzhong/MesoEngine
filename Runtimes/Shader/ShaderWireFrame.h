@@ -36,6 +36,9 @@ void main()
     vec3 RealVertexPosition = VertexPosition * InstanceScale + vec3(ChunkOffset) * pc.Scene.ChunkSize;
     gl_Position = Projection * View * vec4(RealVertexPosition, 1.0);
     OutColor = InstanceMarker > 0.5 ? vec3(0.8, 0.8, 1.0) : vec3(0.8, 1.0, 0.8);
+
+    float DistanceInverse = 1.0 / max(1.0, (length(vec3(ChunkOffset)) - 12.0));
+    OutColor = mix(vec3(1.0,0.8,0.8), OutColor, DistanceInverse);
 }
 )";
     }

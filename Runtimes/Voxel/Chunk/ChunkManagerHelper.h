@@ -4,6 +4,9 @@
 #include <set>
 #include <map>
 
+#include <boost/thread/thread.hpp>
+#include <boost/thread/mutex.hpp>
+
 #include <glm/ext.hpp>
 #include <glm/glm.hpp>
 
@@ -169,26 +172,37 @@ struct FChunkManageHelper
 		return ImportancePriorityQueue;
 	}
 	//Bake
-	inline static TNearestMap<FImportanceChunkQueue> BakeVisibilityByView(const FVoxelSceneConfig& VoxelSceneConfig, uint32_t Samples = 64u)
+	inline static TNearestMap<FImportanceChunkQueue> BakeVisibilityByView(const FVoxelSceneConfig& VoxelSceneConfig, uint32_t Samples = 64u, bool bUseMulithreading = false)
 	{
+		FTimer Timer;
 		TNearestMap<FImportanceChunkQueue> Result;
 		std::vector<vec3> Directions = FVoxelMathHelper::GetFibonacciSphere<float>(Samples);
-		for (const auto& CurrentDirection : Directions)
+		if (bUseMulithreading)
 		{
-			FImportanceChunkQueue CurrentVisibility = GetDesiredShowChunkLocationByView(CurrentDirection, VoxelSceneConfig);
-			Result.Insert(CurrentDirection, std::move(CurrentVisibility));
+			for (const auto& CurrentDirection : Directions)
+			{
+				FImportanceChunkQueue CurrentVisibility = GetDesiredShowChunkLocationByView(CurrentDirection, VoxelSceneConfig);
+				Result.Insert(CurrentDirection, std::move(CurrentVisibility));
+			}
 		}
-		return Result;
-	}
-	inline static TNearestMap<FImportanceChunkQueue> BakeVisibilityByViewSimple(const FVoxelSceneConfig& VoxelSceneConfig, uint32_t Samples = 64u)
-	{
-		TNearestMap<FImportanceChunkQueue> Result;
-		std::vector<vec3> Directions = FVoxelMathHelper::GetFibonacciSphere<float>(Samples);
-		for (const auto& CurrentDirection : Directions)
+		else
 		{
-			FImportanceChunkQueue CurrentVisibility = GetDesiredShowChunkLocationSimple(CurrentDirection, VoxelSceneConfig);
-			Result.Insert(CurrentDirection, std::move(CurrentVisibility));
+			boost::thread_group ThreadGroup;
+			boost::mutex Lock;
+
+			for (const auto& CurrentDirection : Directions)
+			{
+				ThreadGroup.create_thread([&Result, &CurrentDirection, &VoxelSceneConfig, &Lock]()
+					{
+						FImportanceChunkQueue CurrentVisibility = GetDesiredShowChunkLocationByView(CurrentDirection, VoxelSceneConfig);
+
+						boost::lock_guard<boost::mutex> Lock_(Lock);
+						Result.Insert(CurrentDirection, std::move(CurrentVisibility));
+					});
+			}
+			ThreadGroup.join_all();
 		}
+		printf("Baked Time: %.2lfs\n", Timer.Step());
 		return Result;
 	}
 };

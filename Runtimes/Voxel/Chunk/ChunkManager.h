@@ -160,7 +160,7 @@ public:
 		//New Chunk...
 		//Overlap no need to count
 		DesiredToLoadChunkLocations = GetDesiredShowChunkLocation(NewChunkLocation, NewForwardVector, VoxelSceneConfig); //copy
-		RestDesiredToLoadChunkLocations.empty();
+		std::queue<ivec3>().swap(RestDesiredToLoadChunkLocations);
 		ChunkPool.IncreaseFrameStamp();
 	}
 	void MultiThreadGenerator(const ivec3 CurrentDesiredChunkLocation, const uint32_t MipmapLevel, const FImportanceComputeInfo& CameraInfo, const FVoxelSceneConfig& VoxelSceneConfig)

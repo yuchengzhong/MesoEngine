@@ -101,7 +101,6 @@ public:
 	std::vector<FGPUBlock> GPUBlock;
 
 	std::vector<FGPUSimpleInstanceData> GPUInstanceData;
-	uint32_t CurrentGPUInstanceIndex = 0;
 
 	uint32_t SubMaxChunkCount = 0;
 	uint32_t SubMaxEmptyChunkCount = 0;
@@ -171,6 +170,14 @@ public:
 				GPUBlock[CurrentModifyBuffer.ModifyGPUBlockIndex[i]] = CurrentModifyBuffer.ModifyGPUBlock[i];
 			}
 		}
+	}
+	void IncreaseChunkIndex()
+	{
+		CurrentChunkIndex = (CurrentChunkIndex + 1) % SubMaxChunkCount;
+	}
+	void IncreaseEmptyChunkIndex()
+	{
+		CurrentEmptyChunkIndex = (CurrentEmptyChunkIndex + 1) % SubMaxEmptyChunkCount;
 	}
 };
 class FChunkPool
@@ -327,29 +334,18 @@ public:
 		};
 		RPLDebugInstance = LVKContext->createRenderPipeline(DebugInstanceDescriptor, nullptr);
 	}
-	template<typename T>
-	inline void PushToPool(uint32_t MaxChunkCount, FTLSChunkPool& MemoryPool, FTLSChunkPool::FModifyBufferQueue& ModifyQueue, 
-		uint32_t CheckTimes, T&& NewItem, const EChunkState& NewState, 
-		const FImportanceComputeInfo& CameraInfo, const float ChunkSize, const EChunkOverrideMode OverrideMode)
+template<typename T>
+inline void PushToPool(uint32_t MaxChunkCount, FTLSChunkPool& MemoryPool, FTLSChunkPool::FModifyBufferQueue& ModifyQueue,
+	uint32_t CheckTimes, T&& NewItem, const EChunkState& NewState,
+	const FImportanceComputeInfo& CameraInfo, const float ChunkSize, const EChunkOverrideMode& OverrideMode)
 	{
 		static_assert(std::is_base_of_v<FChunkBase, T>, "T must be derived from FChunkBase");
 		const ivec3 NewLocation = NewItem.ChunkLocation;
 		auto NewImportance = CameraInfo.CalculateImportance(NewLocation);
 
-		auto HelperGetChunk = [&]() -> T& 
-			{
-				if constexpr (std::is_same_v<T, FChunk>) 
-				{
-					return MemoryPool.ChunksPool[MemoryPool.CurrentChunkIndex];
-				}
-				else
-				{
-					return MemoryPool.EmptyChunksPool[MemoryPool.CurrentEmptyChunkIndex];
-				}
-			};
 		auto HelperSetIndex = [&](uint32_t DesiredIndex)
 			{
-				if constexpr (std::is_same_v<T, FChunk>) 
+				if constexpr (std::is_same_v<T, FChunk>)
 				{
 					MemoryPool.CurrentChunkIndex = DesiredIndex;
 				}
@@ -358,37 +354,71 @@ public:
 					MemoryPool.CurrentEmptyChunkIndex = DesiredIndex;
 				}
 			};
-
+		auto HelperGetChunk = [&]() -> T&
+			{
+				if constexpr (std::is_same_v<T, FChunk>)
+				{
+					return MemoryPool.ChunksPool[MemoryPool.CurrentChunkIndex];
+				}
+				else
+				{
+					return MemoryPool.EmptyChunksPool[MemoryPool.CurrentEmptyChunkIndex];
+				}
+			};
 		auto HelperIncrementIndex = [&]()
 			{
-				if constexpr (std::is_same_v<T, FChunk>) 
+				if constexpr (std::is_same_v<T, FChunk>)
 				{
-					MemoryPool.CurrentChunkIndex = (MemoryPool.CurrentChunkIndex + 1) % MemoryPool.SubMaxChunkCount;
+					MemoryPool.IncreaseChunkIndex();
 				}
-				else 
+				else
 				{
-					MemoryPool.CurrentEmptyChunkIndex = (MemoryPool.CurrentEmptyChunkIndex + 1) % MemoryPool.SubMaxEmptyChunkCount;
+					MemoryPool.IncreaseEmptyChunkIndex();
+				}
+			};
+		auto HelperGetPoolSize = [&]() -> uint32_t
+			{
+				if constexpr (std::is_same_v<T, FChunk>)
+				{
+					return MemoryPool.SubMaxChunkCount;
+				}
+				else
+				{
+					return MemoryPool.SubMaxEmptyChunkCount;
 				}
 			};
 		auto HelperGetCurrentIndex = [&]()
 			{
-				if constexpr (std::is_same_v<T, FChunk>) 
+				if constexpr (std::is_same_v<T, FChunk>)
 				{
 					return MemoryPool.CurrentChunkIndex;
 				}
-				else 
+				else
 				{
 					return MemoryPool.CurrentEmptyChunkIndex;
+				}
+			};
+		auto GetCurrentGPUInstanceIndex = [&](uint32_t Index) -> uint32_t
+			{
+				if constexpr (std::is_same_v<T, FChunk>)
+				{
+					return Index;
+				}
+				else
+				{
+					return MemoryPool.SubMaxChunkCount + Index;
 				}
 			};
 		//TODO: Merge this, now the FindLess mode
 		// OverrideMode
 		float MinImportance = 1e10;
-		uint32_t OverrideLocationIndex = INT_MAX;
 		ivec3 OverrideOldLocation;
 		bool OverrideInvalidIndex = false;
+		uint32_t OverrideLocationIndex = INT_MAX;
+		uint32_t FarLocationIndex = INT_MAX;
 		FTLSModifyBuffer ModifyBuffer;
-		for (uint32_t i = 0; i < CheckTimes; i++)
+		uint32_t MaxCheckTimes = std::min(HelperGetPoolSize(), CheckTimes);
+		for (uint32_t i = 0; i < MaxCheckTimes; i++)
 		{
 			auto& CurrentChunk = HelperGetChunk();
 			const ivec3 OldLocation = CurrentChunk.ChunkLocation;
@@ -397,45 +427,51 @@ public:
 				const float OldImportance = CameraInfo.CalculateImportance(OldLocation);
 				// If old location's importance larger than new location's
 				// If using regressive mode, even tho old chunk is more importance, it will still override the less importance one
-				if (OldImportance >= NewImportance && OverrideMode != EChunkOverrideMode::OverrideMin)
+				if ((OldImportance >= NewImportance) && (OverrideMode != EChunkOverrideMode::OverrideMin))
 				{
+					HelperIncrementIndex();
 					continue;
 				}
-				if (OverrideMode == EChunkOverrideMode::FindLess)
+				else
 				{
-					OverrideLocationIndex = HelperGetCurrentIndex();
-					OverrideOldLocation = OldLocation;
-					OverrideInvalidIndex = false;
-					break;
-				}
-				else if (OverrideMode == EChunkOverrideMode::FindMin || OverrideMode == EChunkOverrideMode::OverrideMin)
-				{	
-					if (OldImportance < MinImportance)
+					if (OverrideMode == EChunkOverrideMode::FindLess)
 					{
 						OverrideLocationIndex = HelperGetCurrentIndex();
 						OverrideOldLocation = OldLocation;
-						MinImportance = OldImportance;
+						OverrideInvalidIndex = false;
+						break;
+					}
+					else if ((OverrideMode == EChunkOverrideMode::FindMin) || (OverrideMode == EChunkOverrideMode::OverrideMin))
+					{
+						FarLocationIndex = HelperGetCurrentIndex();
+						if (OldImportance < MinImportance)
+						{
+							OverrideLocationIndex = HelperGetCurrentIndex();
+							OverrideOldLocation = OldLocation;
+							MinImportance = OldImportance;
+							OverrideInvalidIndex = false;
+						}
+						HelperIncrementIndex();
+						continue;
 					}
 				}
 			}
 			else
 			{
-				OverrideInvalidIndex = true;
 				OverrideLocationIndex = HelperGetCurrentIndex();
+				OverrideInvalidIndex = true;
 				OverrideOldLocation = OldLocation;
 				break;
 			}
-			HelperIncrementIndex();
 		}
-		if(OverrideLocationIndex != INT_MAX)
+		if (OverrideLocationIndex != INT_MAX)
 		{
-			if (!OverrideInvalidIndex)
+			if (OverrideInvalidIndex)
 			{
-				MemoryPool.SubCurrentDebugDrawInstanceCount--;
+				MemoryPool.SubCurrentDebugDrawInstanceCount++;
 			}
 			HelperSetIndex(OverrideLocationIndex);
 			auto& CurrentChunk = HelperGetChunk();
-			MemoryPool.SubCurrentDebugDrawInstanceCount++;
 			ChunksLookupTable.ATOMIC_remove_and_insert(OverrideOldLocation, NewLocation, NewState);
 			//
 			FGPUSimpleInstanceData NewInstanceData =
@@ -446,9 +482,8 @@ public:
 				.Marker = (std::is_same_v<T, FChunk>) ? 1.0f : 0.0f,
 			};
 			ModifyBuffer.ModifyGPUInstance = NewInstanceData; //copy
-			ModifyBuffer.ModifyGPUInstanceIndex = MemoryPool.CurrentGPUInstanceIndex;
-			MemoryPool.GPUInstanceData[MemoryPool.CurrentGPUInstanceIndex] = std::move(NewInstanceData); //move
-			MemoryPool.CurrentGPUInstanceIndex = (MemoryPool.CurrentGPUInstanceIndex + 1) % MemoryPool.SubMaxGPUInstanceCount;
+			ModifyBuffer.ModifyGPUInstanceIndex = GetCurrentGPUInstanceIndex(OverrideLocationIndex);
+			MemoryPool.GPUInstanceData[ModifyBuffer.ModifyGPUInstanceIndex] = std::move(NewInstanceData); //move
 			//
 			if constexpr (std::is_same_v<T, FChunk>)
 			{
@@ -461,6 +496,13 @@ public:
 				ModifyBuffer.ModifyEmptyChunkIndex = OverrideLocationIndex;
 			}
 			CurrentChunk = std::move(NewItem); // Move
+			if ((OverrideMode == EChunkOverrideMode::FindMin) || (OverrideMode == EChunkOverrideMode::OverrideMin))
+			{
+				if (FarLocationIndex != INT_MAX)
+				{
+					HelperSetIndex(FarLocationIndex);
+				}
+			}
 			HelperIncrementIndex();
 			// Push modify buffer to front
 			ModifyQueue.Push(std::move(ModifyBuffer));
