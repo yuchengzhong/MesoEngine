@@ -126,8 +126,8 @@ public:
         return R"(
 struct PerVertex 
 {
-  vec3 Normal;
-  vec3 Color;
+    vec3 Normal;
+    vec3 Color;
 };
 
 layout (location=0) in PerVertex vtx;
@@ -136,8 +136,8 @@ layout (location=0) out vec4 out_FragColor;
 
 void main() 
 {
-  vec3 n = normalize(vtx.Normal);
-  out_FragColor = vec4(n*0.5+0.5, 0.0);
+    vec3 n = normalize(vtx.Normal);
+    out_FragColor = vec4(n*0.5+0.5, 0.0);
 }
 )";
     }

@@ -79,7 +79,7 @@ void VoxelWindowsInstance::Initialize(const VoxelInstanceInitialConfig& InitialC
 void VoxelWindowsInstance::InitializeCameraAndScene(const VoxelInstanceInitialConfig& InitialConfig)
 {
     //Initialize Camera
-    WindowsCamera.InitializeVoxelCamera(InitialConfig.CameraFOV);
+    WindowsCamera.InitializeVoxelCamera(InitialConfig.CameraFOV, InitialConfig.CameraNear, InitialConfig.CameraFar);
     //Binding
     WindowsCamera.SetCameraChunkUpdateCallback([this]()
         {

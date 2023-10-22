@@ -19,7 +19,9 @@ struct VoxelInstanceInitialConfig
 	uint32_t kNumBufferedFrames = 3;
 	uint32_t kNumSamplesMSAA = 1;
 	std::string FontPath = "";
-	float CameraFOV = 60.0;
+	float CameraFOV = 60.0f;
+	float CameraNear = 0.1f;
+	float CameraFar = 1000.0f;
 	bool bUseHDRForFinalBuffer = false;
 
 	int WindowsWidth = 1280; //if 0, full screen
