@@ -104,7 +104,7 @@ struct FGeneratorHelper
                     double d = (BlockCenterLocation.y * .5 + (displacement(BlockCenterLocation * .1)) * 10.3) * .4;
                     if (d < 0.0)
                     {
-                        Result.Blocks.push_back(
+                        Result.AddBlock(
                             {
                                 .ChunkIndex = 0,//Maybe not neccesary, can do in gather
                                 .BlockLocation = {(uchar)X,(uchar)Y,(uchar)Z},
@@ -117,23 +117,35 @@ struct FGeneratorHelper
         }
         return Result;// Result;
     }
-	inline static FChunk TestGenerator2(ivec3 StartLocation, float BlockSize, unsigned char ChunkResolution, uint32_t MipmapLevel)
-	{
+    inline static FChunk GenerateSphere(ivec3 StartLocation, float BlockSize, unsigned char ChunkResolution, uint32_t MipmapLevel)
+    {
         FChunk Result;
         Result.ChunkLocation = StartLocation;
-		for (uint32_t X = 0; X < ChunkResolution; X++)
-		{
-			for (uint32_t Y = 0; Y < ChunkResolution; Y++)
-			{
-				for (uint32_t Z = 0; Z < ChunkResolution; Z++)
-				{
-					dvec3 ChunkStartLocation = (dvec3)StartLocation * (double)BlockSize * (double)ChunkResolution;
-					dvec3 BlockCenterLocation = ChunkStartLocation + dvec3{ X,Y,Z } *(double)BlockSize;
+        using uchar = unsigned char;
+        for (uint32_t X = 0; X < ChunkResolution; X++)
+        {
+            for (uint32_t Y = 0; Y < ChunkResolution; Y++)
+            {
+                for (uint32_t Z = 0; Z < ChunkResolution; Z++)
+                {
+                    dvec3 ChunkStartLocation = (dvec3)StartLocation * (double)BlockSize * (double)ChunkResolution;
+                    dvec3 BlockCenterLocation = ChunkStartLocation + dvec3{ X,Y,Z } *(double)BlockSize;
 
-                    double d = noised(BlockCenterLocation).x;
-				}
-			}
-		}
-        return {};// Result;
-	}
+                    double d = length(BlockCenterLocation - dvec3{100.0, 0.0, 0.0}) - 40.0;
+                    if (d < 0.0)
+                    {
+                        Result.AddBlock(
+                            {
+                                .ChunkIndex = 0,//Maybe not neccesary, can do in gather
+                                .BlockLocation = {(uchar)X,(uchar)Y,(uchar)Z},
+                                .VolumeIndex = 0,
+                            }
+                        );
+                    }
+                }
+            }
+        }
+        Result.CalculateOccupancyErodeMipmaps();
+        return Result;// Result;
+    }
 };
