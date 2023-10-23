@@ -294,7 +294,7 @@ public:
                 // Scene
                 Buffer.cmdBindRenderPipeline(RPLVoxelInstance);
                 BindViewportScissor(Buffer);
-                Buffer.cmdPushDebugGroupLabel("Render Voxels", 0xff0000ff);
+                Buffer.cmdPushDebugGroupLabel("Render Voxels", 0xa0ffa0ff);
                 Buffer.cmdBindDepthState({ .compareOp = lvk::CompareOp_Less, .isDepthWriteEnabled = true });
                 Buffer.cmdBindVertexBuffer(0, CubeMesh.VertexBuffer, 0);
                 Buffer.cmdBindVertexBuffer(1, ChunkManager.ChunkPool.BlockBuffer, 0);
@@ -305,11 +305,18 @@ public:
                 Buffer.cmdPopDebugGroupLabel();
             }
             Buffer.cmdEndRendering();
-            Buffer.transitionToShaderReadOnly(FBVoxelInstance.color[0].texture); //Transit
             LVKContext->submit(Buffer);
         }
         //Debug visible chunk
-        ChunkManager.DrawDebugVisibleChunk(LVKContext.get(), GlobalUBOBinding);
+        {
+            ChunkManager.DrawDebugVisibleChunk(LVKContext.get(), GlobalUBOBinding);
+        }
+        //
+        {
+            //lvk::ICommandBuffer& Buffer = LVKContext->acquireCommandBuffer();
+            //Buffer.transitionToShaderReadOnly(FBVoxelInstance.color[0].texture); //Transit
+            //LVKContext->submit(Buffer);
+        }
     }
     void ProcessRenderImgui() override
     {

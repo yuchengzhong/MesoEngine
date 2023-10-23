@@ -20,7 +20,7 @@ struct VoxelInstanceInitialConfig
 	uint32_t kNumSamplesMSAA = 1;
 	std::string FontPath = "";
 	float CameraFOV = 60.0f;
-	float CameraNear = 0.1f;
+	float CameraNear = 0.5f;
 	float CameraFar = 1000.0f;
 	bool bUseHDRForFinalBuffer = false;
 

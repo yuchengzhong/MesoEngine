@@ -414,7 +414,7 @@ public:
 				Buffer.cmdPopDebugGroupLabel();
 			}
 			Buffer.cmdEndRendering();
-			Buffer.transitionToShaderReadOnly(ChunkPool.FBDebugInstance.color[0].texture); //Transit
+			//Buffer.transitionToShaderReadOnly(ChunkPool.FBDebugInstance.color[0].texture); //Transit
 			LVKContext->submit(Buffer);
 			DebugTimerSet.Record(DebugMarkSumitRenderingDebugChunkTime);
 		}

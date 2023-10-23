@@ -447,7 +447,7 @@ void VoxelWindowsInstance::RenderEnd()
         Buffer.cmdBeginRendering(RPSwapchain, FBSwapchain);
         {
             Buffer.cmdBindRenderPipeline(RPLSwapchain);
-            Buffer.cmdPushDebugGroupLabel("Swapchain Output", 0xff0000ff);
+            Buffer.cmdPushDebugGroupLabel("Swapchain Output", 0xffa0a0ff);
             Buffer.cmdBindDepthState({ .compareOp = lvk::CompareOp_Less, .isDepthWriteEnabled = true });
 
             struct
