@@ -102,7 +102,7 @@ void main()
 
     mat4 Projection = pc.Camera.Projection;
     mat4 View = pc.Camera.View;
-    gl_Position = Projection * View * vec4(RealVertexPosition, 1.0);
+    gl_Position = Projection * View * vec4(RealVertexPosition, 1.0); //TODO: If Camera Location is inside a cube, move cube surface backward in clip space(for reduce z fighting)
 
     vtx.Normal = normalize(VertexNormal);
     vtx.Color = vec3(1.0);

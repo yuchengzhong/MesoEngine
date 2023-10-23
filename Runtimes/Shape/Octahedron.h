@@ -41,7 +41,7 @@ public:
             5, 4, 3,  // Bottom back-left triangle
             5, 1, 4   // Bottom front-left triangle
         };
-        return { VertexData , IndexData ,  uint32_t(IndexData.size()) * uint32_t(sizeof(uint16_t)) };
+        return { VertexData , IndexData ,  uint32_t(IndexData.size()) };
     }
 };
 
