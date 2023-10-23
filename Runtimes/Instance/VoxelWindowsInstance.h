@@ -19,7 +19,9 @@ struct VoxelInstanceInitialConfig
 	uint32_t kNumBufferedFrames = 3;
 	uint32_t kNumSamplesMSAA = 1;
 	std::string FontPath = "";
-	float CameraFOV = 60.0;
+	float CameraFOV = 60.0f;
+	float CameraNear = 0.1f;
+	float CameraFar = 1000.0f;
 	bool bUseHDRForFinalBuffer = false;
 
 	int WindowsWidth = 1280; //if 0, full screen
@@ -28,6 +30,8 @@ struct VoxelInstanceInitialConfig
 
 	bool bWindowsResizeable = true;
 	bool bShowDemoWindow = true;
+
+	uint32_t LosingFocusDelayMillisecond = 250;
 
 	FVoxelSceneConfig VoxelSceneConfig;
 };
@@ -44,6 +48,7 @@ public:
 	bool bLVKPreferIntegratedGPU = false;
 	uint32_t LVKNumBufferedFrames = 3;
 	uint32_t LVKNumSamplesMSAA = 1;
+	uint32_t LVKLosingFocusDelayMillisecond = 250;
 
 	FVoxelSceneConfig VoxelSceneConfig;
 	FVoxelCamera WindowsCamera;
@@ -53,6 +58,7 @@ public:
 	bool bWindowsMiddleMousePressed = false;
 	bool bUseHDRForFinalBuffer = false;
 	bool bWindowsResizeable = true;
+	bool bWindowsFocusing = true;
 	//UBOs
 	std::vector<lvk::Holder<lvk::BufferHandle>> UBOCamera;
 
@@ -89,6 +95,7 @@ public:
 	//Windows callback
 	virtual void InitializeBegin();
 	virtual void InitializeWindowsCallBacks();
+	virtual void SubInitializeWindowsCallBacks();
 	virtual void SubInitializeFramebufferSizeCallback();
 	virtual void SubInitializeCursorPosCallback();
 	virtual void SubInitializeMouseButtonCallback();
@@ -130,6 +137,7 @@ public:
 	virtual void UpdateFrameIndex();
 
 	virtual void RenderStart();
+	virtual void BindViewportScissor(lvk::ICommandBuffer& Buffer);
 	virtual void Render();
 	virtual void RenderEnd();
 	//

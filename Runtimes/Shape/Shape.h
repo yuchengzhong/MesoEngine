@@ -59,7 +59,7 @@ public:
             {
                 .usage = lvk::BufferUsageBits_Index,
                 .storage = lvk::StorageType_Device,
-                .size = sizeof(uint32_t) * IndexData.size(),
+                .size = sizeof(uint16_t) * IndexData.size(),
                 .data = IndexData.data(),
                 .debugName = "Buffer: index"
             },

@@ -70,14 +70,45 @@ struct FVoxelMathHelper
 		return Points;
 	}
 
-	/*
-	inline static vec3 GetRelativeBlockLocation(const FGPUBlockInstanceData& Block, const FVoxelCamera& Camera)
+	inline static uint32_t Convert3DTo1D(const ivec3& Location, const ivec3& Resolution)
 	{
-		ivec3 RelativeChunkLocationA = Block.ChunkLocation - Camera.CameraChunkLocation;
-		ivec3 RelativeLocationA = {
-									BlockResolution * RelativeChunkLocationA.x + A.BlockLocation.x,
-									BlockResolution * RelativeChunkLocationA.y + A.BlockLocation.y,
-									BlockResolution * RelativeChunkLocationA.z + A.BlockLocation.z };
-	}*/
+		return Location.x + Location.y * Resolution.x + Location.z * Resolution.x * Resolution.y;
+	}
+	inline static uint32_t Convert3DTo1DClamped(const ivec3& Location, const ivec3& Resolution)
+	{
+		ivec3 LocationClamped = Clamp3D(Location, Resolution - ivec3{ 1,1,1 });
+		return LocationClamped.x + LocationClamped.y * Resolution.x + LocationClamped.z * Resolution.x * Resolution.y;
+	}
+	template<typename T>
+	inline static T Clamp(T Value, T Min, T Max)
+	{
+		return std::max(std::min(Value, Max), Min);
+	}
+	inline static ivec3 Clamp3D(const ivec3& Location, const ivec3& Resolution)
+	{
+		return
+		{
+			Clamp(Location.x, 0, Resolution.x),
+			Clamp(Location.y, 0, Resolution.y),
+			Clamp(Location.z, 0, Resolution.z)
+		};
+	}
+
+	//exclusive max bound. [0, n)
+	inline static bool bIsOutOfBound(const ivec3& Location, const ivec3& Resolution)
+	{
+		return
+			Location.x < 0 || Location.x >= Resolution.x ||
+			Location.y < 0 || Location.y >= Resolution.y ||
+			Location.z < 0 || Location.z >= Resolution.z;
+	}
+	//exclusive max bound. [0 + BoundThickness, n - BoundThickness)
+	inline static bool bIsOutOfBoundThickness(const ivec3& Location, const ivec3& Resolution, const uint32_t BoundThickness = 1)
+	{
+		return
+			Location.x < BoundThickness || Location.x >= Resolution.x - BoundThickness ||
+			Location.y < BoundThickness || Location.y >= Resolution.y - BoundThickness ||
+			Location.z < BoundThickness || Location.z >= Resolution.z - BoundThickness;
+	}
 };
 #undef _USE_MATH_DEFINES

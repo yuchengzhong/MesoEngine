@@ -73,8 +73,6 @@ public:
 	FChunkManageHelper::FImportanceChunkQueue DesiredToLoadChunkLocations;
 	std::queue<ivec3> RestDesiredToLoadChunkLocations;
 	//GPU
-	lvk::Holder<lvk::BufferHandle> ChunkBuffer;
-	std::vector<FGPUChunkData> ChunkBufferCPU;
 	uint32_t CurrentChunkCount = 0;
 	//
 	//Wait for all thread finish
@@ -95,16 +93,6 @@ public:
 		//Bake visibility
 		BakeVisibilityViewNum = VoxelSceneConfig.BakeVisibilityViewNum;
 		BakedVisibility = FChunkManageHelper::BakeVisibilityByView(VoxelSceneConfig, BakeVisibilityViewNum);
-
-		ChunkBuffer = LVKContext->createBuffer(
-			{
-				.usage = lvk::BufferUsageBits_Storage,
-				.storage = lvk::StorageType_HostVisible,
-				.size = sizeof(FGPUChunkData) * VoxelSceneConfig.MaxChunkCount,
-				.data = nullptr,
-				.debugName = "Buffer: for storing chunk instance data"
-			},
-			nullptr);
 	}
 private:
 	FChunkManageHelper::FImportanceChunkQueue DummyThisFrameChunkQueue;
@@ -172,17 +160,18 @@ public:
 		}
 		FChunk NewChunk = Generator(CurrentDesiredChunkLocation, VoxelSceneConfig.BlockSize, VoxelSceneConfig.ChunkResolution, MipmapLevel);
 		NewChunk.ChunkLocation = CurrentDesiredChunkLocation;// just make sure
+		NewChunk.CalculateOccupancyErodeMipmaps(VoxelSceneConfig.ChunkResolution, VoxelSceneConfig.ChunkOccupancyDepth);//Calculate inner properties
 		bool bChunkEmpty = NewChunk.Blocks.size() <= 0;
 		if (bChunkEmpty) //Empty
 		{
 			FEmptyChunk NewEmptyChunk;
 			NewEmptyChunk.ChunkLocation = CurrentDesiredChunkLocation;//Just ensure
 
-			ChunkPool.PushEmptyChunk(std::move(NewEmptyChunk), ThreadId, CameraInfo, VoxelSceneConfig.GetChunkSize(), VoxelSceneConfig.ChunkOverrideMode);
+			ChunkPool.PushEmptyChunk(std::move(NewEmptyChunk), ThreadId, ChunkPool.GetFrameStamp(), VoxelSceneConfig.ChunkResolution, CameraInfo, VoxelSceneConfig.GetChunkSize(), VoxelSceneConfig.ChunkOverrideMode);
 		}
 		else
 		{
-			ChunkPool.PushChunk(std::move(NewChunk), ThreadId, CameraInfo, VoxelSceneConfig.GetChunkSize(), VoxelSceneConfig.ChunkOverrideMode);
+			ChunkPool.PushChunk(std::move(NewChunk), ThreadId, ChunkPool.GetFrameStamp(), VoxelSceneConfig.ChunkResolution, CameraInfo, VoxelSceneConfig.GetChunkSize(), VoxelSceneConfig.ChunkOverrideMode);
 		}
 	}
 	void MultiThreadGeneratorBatched(const std::vector<ivec3> CurrentDesiredChunkLocations, const std::vector<uint32_t> MipmapLevels, const FImportanceComputeInfo& CameraInfo, const FVoxelSceneConfig& VoxelSceneConfig)
@@ -198,17 +187,18 @@ public:
 			const uint32_t MipmapLevel = MipmapLevels[i];
 			FChunk NewChunk = Generator(CurrentDesiredChunkLocation, VoxelSceneConfig.BlockSize, VoxelSceneConfig.ChunkResolution, MipmapLevel);
 			NewChunk.ChunkLocation = CurrentDesiredChunkLocation;// just make sure
+			NewChunk.CalculateOccupancyErodeMipmaps(VoxelSceneConfig.ChunkResolution, VoxelSceneConfig.ChunkOccupancyDepth);//Calculate inner properties
 			bool bChunkEmpty = NewChunk.Blocks.size() <= 0;
 			if (bChunkEmpty) //Empty
 			{
 				FEmptyChunk NewEmptyChunk;
 				NewEmptyChunk.ChunkLocation = CurrentDesiredChunkLocation;//Just ensure
 
-				ChunkPool.PushEmptyChunk(std::move(NewEmptyChunk), ThreadId, CameraInfo, VoxelSceneConfig.GetChunkSize(), VoxelSceneConfig.ChunkOverrideMode);
+				ChunkPool.PushEmptyChunk(std::move(NewEmptyChunk), ThreadId, ChunkPool.GetFrameStamp(), VoxelSceneConfig.ChunkResolution, CameraInfo, VoxelSceneConfig.GetChunkSize(), VoxelSceneConfig.ChunkOverrideMode);
 			}
 			else
 			{
-				ChunkPool.PushChunk(std::move(NewChunk), ThreadId, CameraInfo, VoxelSceneConfig.GetChunkSize(), VoxelSceneConfig.ChunkOverrideMode);
+				ChunkPool.PushChunk(std::move(NewChunk), ThreadId, ChunkPool.GetFrameStamp(), VoxelSceneConfig.ChunkResolution, CameraInfo, VoxelSceneConfig.GetChunkSize(), VoxelSceneConfig.ChunkOverrideMode);
 			}
 		}
 	}
@@ -398,8 +388,6 @@ public:
 			//printf("Chunk %d Loaded\n", CurrentTotallyAddedChunkNum);
 		}
 		//Visualize
-		//TODO: Delete this function
-		UpdateVisibleBlock(LVKContext, VoxelSceneConfig);
 		//For Debug
 		ChunkPool.UpdateDebugVisibleChunk(LVKContext, VoxelSceneConfig);
 	}
@@ -413,7 +401,7 @@ public:
 			lvk::ICommandBuffer& Buffer = LVKContext->acquireCommandBuffer();
 			Buffer.cmdBeginRendering(ChunkPool.RPDebugInstance, ChunkPool.FBDebugInstance);
 			{
-				// Scene
+				// Scene, wireframe
 				Buffer.cmdBindRenderPipeline(ChunkPool.RPLDebugInstance);
 				Buffer.cmdPushDebugGroupLabel("Render Visibility Chunk Wireframe", 0xff0000ff);
 				Buffer.cmdBindDepthState({ .compareOp = lvk::CompareOp_Less, .isDepthWriteEnabled = true });
@@ -422,77 +410,13 @@ public:
 
 				Buffer.cmdPushConstants(PushConstantData);
 				Buffer.cmdBindIndexBuffer(ChunkPool.OctahedronMesh.IndexBuffer, lvk::IndexFormat_UI16);
-				Buffer.cmdDrawIndexed(ChunkPool.OctahedronMesh.GetIndexSize(), ChunkPool.MaxChunkCount + ChunkPool.MaxEmptyChunkCount);
+				Buffer.cmdDrawIndexed(ChunkPool.OctahedronMesh.GetIndexSize(), ChunkPool.MaxChunkCount + ChunkPool.MaxEmptyChunkCount); // <-------- TODO: Culling scan in cs, draw indirect
 				Buffer.cmdPopDebugGroupLabel();
 			}
 			Buffer.cmdEndRendering();
 			Buffer.transitionToShaderReadOnly(ChunkPool.FBDebugInstance.color[0].texture); //Transit
 			LVKContext->submit(Buffer);
 			DebugTimerSet.Record(DebugMarkSumitRenderingDebugChunkTime);
-		}
-	}
-	//
-	std::vector<FGPUChunkData> GatherChunkInfo()
-	{
-		std::vector<FGPUChunkData> Result = {};
-			/*
-			ChunkPool.AtomicChunksPool.GetValidItem<FGPUChunkData>(
-				[](const FChunk& Chunk)
-				{
-					return FGPUChunkData{ .ChunkLocation = Chunk.ChunkLocation };
-				});*/
-		/*
-		for (uint32_t i = 0; i < ChunkPool.AtomicChunksPool.Size; i++)
-		{
-			if (ChunkPool.AtomicChunksPool.TryLock(i))
-			{
-				if (ChunkPool.AtomicChunksPool.Pool[i].bIsvalid())
-				{
-					FGPUChunkData ChunkData =
-					{
-						.ChunkLocation = ChunkPool.AtomicChunksPool.Pool[i].ChunkLocation,
-					};
-					Result.push_back(std::move(ChunkData));
-					ChunkPool.AtomicChunksPool.TryUnlock(i);
-				}
-				else
-				{
-					if (!ChunkPool.AtomicChunksPool.TryUnlock(i))
-					{
-						throw std::runtime_error("Something wrong with unlock AtomicChunksPool.");
-					}
-				}
-			}
-		}
-		*/
-		return Result;
-	}
-	//For drawing
-	//TODO: Stop upload if nothing new
-	void UpdateVisibleBlock(lvk::IContext* LVKContext, const FVoxelSceneConfig& VoxelSceneConfig)
-	{
-		bool Expected = true;
-		if (ChunkPool.bAtomicVisibleChunkDirty.compare_exchange_strong(Expected, false))// Compare, Release
-		{
-			//Update Chunk First
-			DebugTimerSet.Start(DebugMarkGatherAllChunkTime);
-			ChunkBufferCPU = GatherChunkInfo();
-			//printf("%d\n", ChunkBufferCPU.size());
-			DebugTimerSet.Record(DebugMarkGatherAllChunkTime);
-			//
-			/*
-			CurrentChunkCount = (uint32_t)ChunkBufferCPU.size();
-			if (CurrentDebugDrawInstanceCount > VoxelSceneConfig.MaxEmptyChunkCount + VoxelSceneConfig.MaxChunkCount)
-			{
-				printf("UpdateDebugVisibleChunk: CurrentDebugDrawInstanceCount larger than (MaxEmptyChunkCount + MaxChunkCount).\n");
-				CurrentDebugDrawInstanceCount = VoxelSceneConfig.MaxEmptyChunkCount + VoxelSceneConfig.MaxChunkCount;
-			}
-			Timer.Start();
-			LVKContext->upload(DebugInstanceBuffer, DebugInstanceBufferCPU.data(), sizeof(FGPUSimpleInstanceData) * CurrentDebugDrawInstanceCount);
-			DebugUploadVisibleChunkTime += Timer.Step();
-			DebugUploadVisibleChunkTimes += 1;
-			//Update Block(Visible Only)
-			*/
 		}
 	}
 
@@ -545,6 +469,10 @@ public:
 		ImGui::SameLine(Offset);
 		ImGui::Text("%d", ChunkPool.CurrentDebugDrawInstanceCount);
 
+		ImGui::Text("Loaded Block:");
+		ImGui::SameLine(Offset);
+		ImGui::Text("%d", ChunkPool.CurrentBlockCount);
+
 		ImGui::Text("Newly Added Visible Chunk:");
 		ImGui::SameLine(Offset);
 		ImGui::Text("%d", DebugNewVisibleChunkNum);
@@ -580,6 +508,16 @@ public:
 		ImGui::Text("Debug Upload Visible Chunk Time:");
 		ImGui::SameLine(Offset);
 		ImGui::Text("%.4lf ms", UploadVisibleChunkTime * 1000.0);
+
+		double UploadChunkTime = ChunkPool.DebugTimerSet.GetAverage(ChunkPool.DebugMarkUploadChunk);
+		ImGui::Text("Debug Upload Chunk Time:");
+		ImGui::SameLine(Offset);
+		ImGui::Text("%.4lf ms", UploadChunkTime * 1000.0);
+
+		double UploadBlockTime = ChunkPool.DebugTimerSet.GetAverage(ChunkPool.DebugMarkUploadBlock);
+		ImGui::Text("Debug Upload Block Time:");
+		ImGui::SameLine(Offset);
+		ImGui::Text("%.4lf ms", UploadBlockTime * 1000.0);
 
 		double GatherAllChunkTime = DebugTimerSet.GetAverage(DebugMarkGatherAllChunkTime);
 		ImGui::Text("Gather All Chunk Time:");

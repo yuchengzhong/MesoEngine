@@ -19,6 +19,7 @@ public:
     {
         return FGPUSimpleInstanceData::GetInstanceLayoutShader(0) + FGPUUniformCamera::GetStructureShader() + FGPUUniformSceneConfig::GetStructureShader() +
 R"(
+#define SATURATION 0.5
 layout (location=0) out vec3 OutColor;
 
 layout(push_constant) uniform constants
@@ -35,10 +36,10 @@ void main()
     ivec3 ChunkOffset = InstanceChunkLocation - pc.Camera.CameraChunkLocation;
     vec3 RealVertexPosition = VertexPosition * InstanceScale + vec3(ChunkOffset) * pc.Scene.ChunkSize;
     gl_Position = Projection * View * vec4(RealVertexPosition, 1.0);
-    OutColor = InstanceMarker > 0.5 ? vec3(0.8, 0.8, 1.0) : vec3(0.8, 1.0, 0.8);
+    OutColor = InstanceMarker > 0.5 ? vec3(SATURATION, SATURATION, 1.0) : vec3(SATURATION, 1.0, SATURATION);
 
     float DistanceInverse = 1.0 / max(1.0, (length(vec3(ChunkOffset)) - 12.0));
-    OutColor = mix(vec3(1.0,0.8,0.8), OutColor, DistanceInverse);
+    OutColor = mix(vec3(1.0,SATURATION,SATURATION), OutColor, DistanceInverse);
 }
 )";
     }

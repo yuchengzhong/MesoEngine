@@ -23,7 +23,7 @@ struct FImportanceComputeInfo
 	ivec3 CameraChunk = { 0,0,0 };
 	vec3 CameraForwardVector = {};
 
-	inline static float CalculateImportance(const FImportanceComputeInfo& CameraInfo, ivec3 ChunkLocation)
+	inline static float CalculateChunkImportance(const FImportanceComputeInfo& CameraInfo, ivec3 ChunkLocation)
 	{
 		float Importance = 0.0f;
 		ivec3 CurrentOffset = ChunkLocation - CameraInfo.CameraChunk;
@@ -42,9 +42,35 @@ struct FImportanceComputeInfo
 		}
 		return Importance;
 	}
-	inline float CalculateImportance(ivec3 ChunkLocation) const
+	inline float CalculateChunkImportance(ivec3 ChunkLocation) const
 	{
-		return CalculateImportance(*this, ChunkLocation);
+		return CalculateChunkImportance(*this, ChunkLocation);
+	}
+
+	inline static float CalculateBlockImportance(const FImportanceComputeInfo& CameraInfo, ivec3 ChunkLocation, u8vec3 BlockLocation, uint32_t ChunkResolution = 16)
+	{
+		float Importance = 0.0f;
+		ivec3 CurrentOffset = (ChunkLocation - CameraInfo.CameraChunk) * (int)ChunkResolution + ivec3(BlockLocation);
+		const float Far = 64.0f * ChunkResolution;
+		if (CurrentOffset.x >= -2 * ChunkResolution && CurrentOffset.x <= 2 * ChunkResolution && 
+			CurrentOffset.y >= -2 * ChunkResolution && CurrentOffset.y <= 2 * ChunkResolution && 
+			CurrentOffset.z >= -2 * ChunkResolution && CurrentOffset.z <= 2 * ChunkResolution)
+		{
+			Importance = 1.0e6f;
+		}
+		else
+		{
+			vec3 Direction = normalize(vec3(CurrentOffset));
+			float Distance = length(vec3(CurrentOffset));
+			float AngleImportance = std::max((std::max(0.0f, dot(Direction, CameraInfo.CameraForwardVector)) - 0.5f) * 2.0f, 0.75f);
+			float DistanceImportance = std::max(0.25f, Far - Distance);
+			Importance = AngleImportance * DistanceImportance;
+		}
+		return Importance;
+	}
+	inline float CalculateBlockImportance(ivec3 ChunkLocation, u8vec3 BlockLocation, uint32_t ChunkResolution = 16) const
+	{
+		return CalculateBlockImportance(*this, ChunkLocation, BlockLocation, ChunkResolution);
 	}
 };
 struct FChunkManageHelper
@@ -113,7 +139,7 @@ struct FChunkManageHelper
 									};
 						ImportancePriorityQueue.push(
 							{ 
-								CameraInfo.CalculateImportance(CurrentOffset), 
+								CameraInfo.CalculateChunkImportance(CurrentOffset), 
 								CurrentOffset 
 							});
 					}
@@ -177,7 +203,8 @@ struct FChunkManageHelper
 		FTimer Timer;
 		TNearestMap<FImportanceChunkQueue> Result;
 		std::vector<vec3> Directions = FVoxelMathHelper::GetFibonacciSphere<float>(Samples);
-		if (bUseMulithreading)
+
+		if (!bUseMulithreading)
 		{
 			for (const auto& CurrentDirection : Directions)
 			{
@@ -204,5 +231,11 @@ struct FChunkManageHelper
 		}
 		printf("Baked Time: %.2lfs\n", Timer.Step());
 		return Result;
+	}
+
+	inline static uint32_t TruncateFrameStamp(uint64_t FrameStamp)
+	{
+		//return FrameStamp % (0xFFFFFFFFllu);
+		return FrameStamp % (0x100000000llu);
 	}
 };

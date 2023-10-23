@@ -49,4 +49,8 @@ public:
         //TODO handle shader cache
         SMHandle = Context->createShaderModule({ GetShaderString().c_str(), GetShaderStage(), GetShaderDebugInfo().c_str() });
     }
+    static std::string DefineConstant(uint32_t Value, std::string DefineName)
+    {
+        return "#define " + DefineName + " " + std::to_string(Value) + "\n";
+    }
 };

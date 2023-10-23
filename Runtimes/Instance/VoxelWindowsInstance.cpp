@@ -36,6 +36,7 @@ void VoxelWindowsInstance::Initialize(const VoxelInstanceInitialConfig& InitialC
         bUseHDRForFinalBuffer = InitialConfig.bUseHDRForFinalBuffer;
         bWindowsResizeable = InitialConfig.bWindowsResizeable;
         bShowDemoWindow = InitialConfig.bShowDemoWindow;
+        LVKLosingFocusDelayMillisecond = InitialConfig.LosingFocusDelayMillisecond;
 
 #ifndef __APPLE__
         LVKNumSamplesMSAA = std::min(LVKNumSamplesMSAA, 8u);
@@ -78,7 +79,7 @@ void VoxelWindowsInstance::Initialize(const VoxelInstanceInitialConfig& InitialC
 void VoxelWindowsInstance::InitializeCameraAndScene(const VoxelInstanceInitialConfig& InitialConfig)
 {
     //Initialize Camera
-    WindowsCamera.InitializeVoxelCamera(InitialConfig.CameraFOV);
+    WindowsCamera.InitializeVoxelCamera(InitialConfig.CameraFOV, InitialConfig.CameraNear, InitialConfig.CameraFar);
     //Binding
     WindowsCamera.SetCameraChunkUpdateCallback([this]()
         {
@@ -131,11 +132,28 @@ void VoxelWindowsInstance::InitializeWindowsCallBacks()
 {
     glfwSetWindowUserPointer(LVKWindow, this);
     //
+    SubInitializeWindowsCallBacks();
     SubInitializeFramebufferSizeCallback();
     SubInitializeCursorPosCallback();
     SubInitializeMouseButtonCallback();
     SubInitializeScrollCallback();
     SubInitializeKeyCallback();
+}
+
+void VoxelWindowsInstance::SubInitializeWindowsCallBacks()
+{
+    glfwSetWindowFocusCallback(LVKWindow, [](GLFWwindow* Window, int Focused)
+    {
+        VoxelWindowsInstance* Instance = static_cast<VoxelWindowsInstance*>(glfwGetWindowUserPointer(Window));
+        if (Focused)
+        {
+            Instance->bWindowsFocusing = true;
+        }
+        else
+        {
+            Instance->bWindowsFocusing = false;
+        }
+    });
 }
 
 void VoxelWindowsInstance::SubInitializeFramebufferSizeCallback()
@@ -390,6 +408,18 @@ void VoxelWindowsInstance::UpdateFrameIndex()
 void VoxelWindowsInstance::RenderStart()
 {
     LVK_PROFILER_FUNCTION();
+    if (!bWindowsFocusing)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(LVKLosingFocusDelayMillisecond));
+    }
+}
+
+void VoxelWindowsInstance::BindViewportScissor(lvk::ICommandBuffer& Buffer)
+{
+    const lvk::Viewport Viewport = { 0.0f, 0.0f, (float)WindowsWidth, (float)WindowsHeight, 0.0f, +1.0f };
+    const lvk::ScissorRect Scissor = { 0, 0, (uint32_t)WindowsWidth, (uint32_t)WindowsHeight };
+    Buffer.cmdBindViewport(Viewport);
+    Buffer.cmdBindScissorRect(Scissor);
 }
 
 void VoxelWindowsInstance::Render()
