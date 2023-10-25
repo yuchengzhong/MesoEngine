@@ -8,6 +8,7 @@ using glm::vec2;
 using glm::vec3;
 using glm::vec4;
 using glm::ivec3;
+using glm::ivec4;
 
 struct FGPUUniformSceneConfig
 {
@@ -36,7 +37,8 @@ struct FGPUUniformCamera
 {
 	mat4 Projection = {};
 	mat4 View = {};
-	ivec3 CameraChunkLocation = {};
+	ivec4 CameraChunkLocation = {};
+	vec4 SubCameraLocation = {};
 
 	static std::string GetStructureShader()
 	{
@@ -46,7 +48,8 @@ layout(std430, buffer_reference) readonly buffer CameraInfo
 {
 	mat4 Projection;
 	mat4 View;
-	ivec3 CameraChunkLocation;
+	ivec4 CameraChunkLocation;
+	vec4 SubCameraLocation;
 };
 )";
 	}
@@ -88,7 +91,7 @@ struct FGPUSimpleInstanceData
     vec4 Rotation = { 1.0f, 0.0f, 0.0f, 0.0f };
     float Marker = 0.0f;
 
-    static lvk::VertexInput GetInstanceDescriptor()
+    static lvk::VertexInput GetInstanceAndVertexDescriptor()
     {
         return
         {

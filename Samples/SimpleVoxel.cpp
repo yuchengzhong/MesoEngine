@@ -3,6 +3,7 @@
 #include "Shape/Octahedron.h"
 #include "Voxel/Chunk/ChunkManager.h"
 #include "Helper/GeneratorHelper.h"
+#include "Shape/TriplePlanarCube.h"
 
 #if defined(NDEBUG)
 constexpr bool kEnableValidationLayers = false;
@@ -43,7 +44,7 @@ public:
         //layout(location = 0) in vec3 Position;
         //layout(location = 1) in vec3 Normal;
 
-        return FGPUSimpleVertexData::GetLayoutShader() + FGPUBlock::GetLayoutShader(2) + 
+        return FGPUBlock::GetInstanceLayoutShader(0) + 
             FGPUUniformCamera::GetStructureShader() + FGPUUniformSceneConfig::GetStructureShader() +
             FGPUChunk::GetStructureShader() + 
             DefineConstant(ChunkArraySize, "CHUNK_ARRAY_SIZE") +
@@ -82,6 +83,57 @@ ivec3 ReverseUnpackU8Vec3(uint PackedValue)
     uint z = (PackedValue >> 16) & 0xFF;
     return ivec3(x, y, z);
 }
+const vec3 TriplanarPositions[56] = vec3[56](
+	vec3(-1.0, -1.0, -1.0), //0
+	vec3(-1.0, 1.0, 1.0), vec3(-1.0, 1.0, -1.0), 
+	vec3(1.0, 1.0, -1.0), vec3(1.0, -1.0, -1.0), 
+	vec3(1.0, -1.0, 1.0), vec3(-1.0, -1.0, 1.0),
+
+	vec3(1.0, -1.0, -1.0), //1
+	vec3(1.0, 1.0, 1.0), vec3(1.0, 1.0, -1.0), 
+	vec3(-1.0, 1.0, -1.0), vec3(-1.0, -1.0, -1.0), 
+	vec3(-1.0, -1.0, 1.0), vec3(1.0, -1.0, 1.0),
+
+	vec3(-1.0, 1.0, -1.0), //2
+	vec3(-1.0, -1.0, 1.0), vec3(-1.0, -1.0, -1.0), 
+	vec3(1.0, -1.0, -1.0), vec3(1.0, 1.0, -1.0), 
+	vec3(1.0, 1.0, 1.0), vec3(-1.0, 1.0, 1.0),
+
+	vec3(1.0, 1.0, -1.0), //3
+	vec3(1.0, -1.0, 1.0), vec3(1.0, -1.0, -1.0), 
+	vec3(-1.0, -1.0, -1.0), vec3(-1.0, 1.0, -1.0), 
+	vec3(-1.0, 1.0, 1.0), vec3(1.0, 1.0, 1.0),
+
+	vec3(-1.0, -1.0, 1.0), //4
+	vec3(-1.0, 1.0, -1.0), vec3(-1.0, 1.0, 1.0), 
+	vec3(1.0, 1.0, 1.0), vec3(1.0, -1.0, 1.0), 
+	vec3(1.0, -1.0, -1.0), vec3(-1.0, -1.0, -1.0),
+
+	vec3(1.0, -1.0, 1.0), //5
+	vec3(1.0, 1.0, -1.0), vec3(1.0, 1.0, 1.0), 
+	vec3(-1.0, 1.0, 1.0), vec3(-1.0, -1.0, 1.0), 
+	vec3(-1.0, -1.0, -1.0), vec3(1.0, -1.0, -1.0),
+
+	vec3(-1.0, 1.0, 1.0), //6
+	vec3(-1.0, -1.0, -1.0), vec3(-1.0, -1.0, 1.0), 
+	vec3(1.0, -1.0, 1.0), vec3(1.0, 1.0, 1.0), 
+	vec3(1.0, 1.0, -1.0), vec3(-1.0, 1.0, -1.0),
+
+	vec3(1.0, 1.0, 1.0), //7
+	vec3(1.0, -1.0, -1.0), vec3(1.0, -1.0, 1.0), 
+	vec3(-1.0, -1.0, 1.0), vec3(-1.0, 1.0, 1.0), 
+	vec3(-1.0, 1.0, -1.0), vec3(1.0, 1.0, -1.0)
+);
+
+int GetOctantId(vec3 v) 
+{
+    int id = 0;
+    if(v.x < 0.0) id |= 1;     // 001
+    if(v.y < 0.0) id |= 2;     // 010
+    if(v.z < 0.0) id |= 4;     // 100
+    return id;
+}
+
 void main() 
 {
     ivec3 InstanceChunkLocation = ivec3(INT_MAX, INT_MAX, INT_MAX);
@@ -93,24 +145,35 @@ void main()
             InstanceChunkLocation = CachedChunk.ChunkLocation;
         }
     }
-    ivec3 ChunkOffset = InstanceChunkLocation - pc.Camera.CameraChunkLocation;
+    ivec3 ChunkOffset = InstanceChunkLocation - pc.Camera.CameraChunkLocation.xyz;
     ivec3 SubOffset = ReverseUnpackU8Vec3(InstanceBlockLocation);
 /*
     ivec3 InstanceChunkLocation = ivec3(0, 0, 0);
-    ivec3 ChunkOffset = InstanceChunkLocation - pc.Camera.CameraChunkLocation;
+    ivec3 ChunkOffset = InstanceChunkLocation - pc.Camera.CameraChunkLocation.xyz;
     ivec3 SubOffset = ivec3(0, 0, 0);
 */
 //
-    ivec3 ViewRelativeBlockOffset = ChunkOffset * int(pc.Scene.ChunkResolution) + SubOffset;
-    float ChunkResolutionInv = 1.0 / pc.Scene.ChunkResolution;
-    vec3 RealVertexPosition = 0.5 * VertexPosition * pc.Scene.BlockSize + ViewRelativeBlockOffset * ChunkResolutionInv * pc.Scene.ChunkSize;
-
     mat4 Projection = pc.Camera.Projection;
     mat4 View = pc.Camera.View;
+    //vec3 RealVertexPosition = 0.5 * VertexPosition * pc.Scene.BlockSize + RealViewChunkRelativeBlockOffset;
+//
+    ivec3 ViewChunkRelativeBlockOffset = ChunkOffset * int(pc.Scene.ChunkResolution) + SubOffset;
+    float ChunkResolutionInv = 1.0 / pc.Scene.ChunkResolution;
+    vec3 RealViewChunkRelativeBlockOffset = ViewChunkRelativeBlockOffset * ChunkResolutionInv * pc.Scene.ChunkSize;
+    vec3 CameraPosition = pc.Camera.SubCameraLocation.xyz;
+//
+    vec3 RealViewRelativeBlockOffset = RealViewChunkRelativeBlockOffset - CameraPosition;
+    int OctantId = GetOctantId(RealViewRelativeBlockOffset);
+    vec3 ImposterVertexPosition = TriplanarPositions[gl_VertexIndex + OctantId * 7];
+//    
+    vec3 RealVertexPosition = 0.5 * ImposterVertexPosition * pc.Scene.BlockSize + RealViewChunkRelativeBlockOffset;
+//    
     gl_Position = Projection * View * vec4(RealVertexPosition, 1.0); //TODO: If Camera Location is inside a cube, move cube surface backward in clip space(for reduce z fighting)
 
-    vtx.Normal = normalize(VertexNormal);
-    vtx.Color = vec3(1.0);
+    //vtx.Normal = vec3(1.0, 0.0, 0.0);//normalize(VertexNormal);
+    vtx.Normal = ImposterVertexPosition;//normalize(VertexNormal);
+    vtx.Color = vec3(OctantId * 1.0 / 7.0);
+    //vtx.Color = normalize(CameraPosition + pc.Camera.CameraChunkLocation.xyz * pc.Scene.ChunkSize) * 0.5 + 0.5;
 }
 )";
     }
@@ -141,8 +204,10 @@ layout (location=0) out vec4 out_FragColor;
 
 void main() 
 {
-    vec3 n = normalize(vtx.Normal);
-    out_FragColor = vec4(n*0.5+0.5, 0.0);
+    //vec3 n = normalize(vtx.Normal);
+    //out_FragColor = vec4(n*0.5+0.5, 0.0);
+    out_FragColor = vec4(vtx.Normal*0.5+0.5, 0.0);
+    //out_FragColor = vec4(vtx.Color, 0.0);
 }
 )";
     }
@@ -162,7 +227,7 @@ public:
     ShaderInstanceVoxelFS ShaderInstanceVoxelFSInstance;
 
     //Shape
-    FCubeHolder CubeMesh;
+    FTriplePlanarCubeHolder TripleCubeIndex;
 
     //Multi thread
     uint32_t ThreadCount = 4;
@@ -174,7 +239,7 @@ public:
     {
         VoxelWindowsInstance::InitializeContext();
         //Mesh shape
-        CubeMesh.Initialize(LVKContext.get());
+        TripleCubeIndex.Initialize(LVKContext.get());
     }
     void InitializeBegin() override
     {
@@ -256,6 +321,7 @@ public:
         {
             const lvk::RenderPipelineDesc Desc = 
             {
+                .topology = lvk::Topology_TriangleFan,
                 .vertexInput = FGPUBlock::GetInstanceDescriptor(),
                 .smVert = ShaderInstanceVoxelVSInstance.SMHandle,
                 .smFrag = ShaderInstanceVoxelFSInstance.SMHandle,
@@ -263,6 +329,7 @@ public:
                 .depthFormat = LVKContext->getFormat(TEXOffscreenDepth),
                 .cullMode = lvk::CullMode_None,
                 .frontFaceWinding = lvk::WindingMode_CCW,
+                //.polygonMode = lvk::PolygonMode_Line,
                 .samplesCount = 1, //Currently only 1 is support(for convenient)
                 .debugName = "Pipeline: voxel instance",
             };
@@ -300,16 +367,15 @@ public:
                 BindViewportScissor(Buffer);
                 Buffer.cmdPushDebugGroupLabel("Render Voxels", 0xa0ffa0ff);
                 Buffer.cmdBindDepthState({ .compareOp = bLVKReverseZ ? lvk::CompareOp_Greater : lvk::CompareOp_Less, .isDepthWriteEnabled = true });
-                Buffer.cmdBindVertexBuffer(0, CubeMesh.VertexBuffer, 0);
-                Buffer.cmdBindVertexBuffer(1, ChunkManager.ChunkPool.BlockBuffer, 0);
-                Buffer.cmdBindIndexBuffer(CubeMesh.IndexBuffer, lvk::IndexFormat_UI16);
+                Buffer.cmdBindVertexBuffer(0, ChunkManager.ChunkPool.BlockBuffer, 0);
+                Buffer.cmdBindIndexBuffer(TripleCubeIndex.IndexBuffer, lvk::IndexFormat_UI16);
 
                 Buffer.cmdPushConstants(GlobalChunkBlockUBOBinding);
-                Buffer.cmdDrawIndexed(CubeMesh.GetIndexSize(), ChunkManager.ChunkPool.MaxBlockCount); //1  // <-------- TODO: Culling scan in cs, draw indirect
+                Buffer.cmdDrawIndexed(TripleCubeIndex.GetIndexSize(), ChunkManager.ChunkPool.MaxBlockCount); // ChunkManager.ChunkPool.MaxBlockCount //1  // <-------- TODO: Culling scan in cs, draw indirect
                 Buffer.cmdPopDebugGroupLabel();
             }
             Buffer.cmdEndRendering();
-            LVKContext->submit(Buffer);
+            ChunkManager.ChunkPool.MainRenderThreadSummitHandle = LVKContext->submit(Buffer);
         }
         //Debug visible chunk
         {

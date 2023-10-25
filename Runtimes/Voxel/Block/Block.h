@@ -25,7 +25,7 @@ struct FGPUBlock
 	uint32_t BlockFrameStamp = 0;
 	//uint32_t VolumeIndex; //This refer to GPU Volume virtual index
 
-    static lvk::VertexInput GetInstanceDescriptor()
+    static lvk::VertexInput GetInstanceAndVertexDescriptor()
     {
         return
         {
@@ -40,7 +40,20 @@ struct FGPUBlock
             .inputBindings = { {.stride = sizeof(FGPUSimpleVertexData), .rate = 0}, {.stride = sizeof(FGPUBlock), .rate = 1} },
         };
     }
-    static std::string GetLayoutShader(uint32_t Offset = 0)//Layout size: 3
+    static lvk::VertexInput GetInstanceDescriptor()
+    {
+        return
+        {
+            .attributes =
+            {
+                {.location = 0, .binding = 0, .format = lvk::VertexFormat::UInt1, .offset = offsetof(FGPUBlock, ChunkIndex)},
+                {.location = 1, .binding = 0, .format = lvk::VertexFormat::UInt1, .offset = offsetof(FGPUBlock, BlockLocation)},
+                {.location = 2, .binding = 0, .format = lvk::VertexFormat::UInt1, .offset = offsetof(FGPUBlock, BlockFrameStamp)},
+            },
+            .inputBindings = { {.stride = sizeof(FGPUBlock), .rate = 1} },
+        };
+    }
+    static std::string GetInstanceLayoutShader(uint32_t Offset = 0)//Layout size: 3
     {
         const std::string Layout = "layout (location=";
         return "\n" +
