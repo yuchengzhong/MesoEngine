@@ -51,6 +51,7 @@ class FChunkManage
 	bool bDebugDisableUpdateChunk = false;
 	bool bDebugMultiThreading = false;
 	bool bDebugVisibleChunk = true;
+	bool bDebugReverseZ = true;
 	// Debug
 	FTimerSet DebugTimerSet;
 	/* 
@@ -84,10 +85,12 @@ public:
 	{
 		GeneratorThreadPool.WaitForTasksToComplete();
 	}
-	void Initialize(lvk::IContext* LVKContext, const uint32_t& ThreadCount, const FVoxelSceneConfig& VoxelSceneConfig, GeneratorType Generator_)
+	void Initialize(lvk::IContext* LVKContext, const uint32_t& ThreadCount, const FVoxelSceneConfig& VoxelSceneConfig, GeneratorType Generator_, bool bDebugReverseZ_ = true)
 	{
+		bDebugReverseZ = bDebugReverseZ_;
+
 		GeneratorThreadPool.Initialize(ThreadCount);// leave some cores for youtube
-		ChunkPool.Initialize(LVKContext, VoxelSceneConfig, ThreadCount);
+		ChunkPool.Initialize(LVKContext, VoxelSceneConfig, ThreadCount, bDebugReverseZ);
 		//
 		SetGenerator(std::move(Generator_));
 		//Bake visibility
@@ -404,7 +407,7 @@ public:
 				// Scene, wireframe
 				Buffer.cmdBindRenderPipeline(ChunkPool.RPLDebugInstance);
 				Buffer.cmdPushDebugGroupLabel("Render Visibility Chunk Wireframe", 0xff0000ff);
-				Buffer.cmdBindDepthState({ .compareOp = lvk::CompareOp_Less, .isDepthWriteEnabled = true });
+				Buffer.cmdBindDepthState({ .compareOp = bDebugReverseZ ? lvk::CompareOp_Greater:lvk::CompareOp_Less, .isDepthWriteEnabled = true });
 				Buffer.cmdBindVertexBuffer(0, ChunkPool.OctahedronMesh.VertexBuffer, 0);
 				Buffer.cmdBindVertexBuffer(1, ChunkPool.DebugInstanceBuffer, 0);
 
@@ -414,7 +417,7 @@ public:
 				Buffer.cmdPopDebugGroupLabel();
 			}
 			Buffer.cmdEndRendering();
-			Buffer.transitionToShaderReadOnly(ChunkPool.FBDebugInstance.color[0].texture); //Transit
+			//Buffer.transitionToShaderReadOnly(ChunkPool.FBDebugInstance.color[0].texture); //Transit
 			LVKContext->submit(Buffer);
 			DebugTimerSet.Record(DebugMarkSumitRenderingDebugChunkTime);
 		}

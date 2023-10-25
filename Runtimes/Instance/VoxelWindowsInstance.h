@@ -30,6 +30,7 @@ struct VoxelInstanceInitialConfig
 
 	bool bWindowsResizeable = true;
 	bool bShowDemoWindow = true;
+	bool bReverseZ = true;
 
 	uint32_t LosingFocusDelayMillisecond = 250;
 
@@ -46,6 +47,7 @@ public:
 
 	bool bLVKEnableValidationLayers = false;
 	bool bLVKPreferIntegratedGPU = false;
+	bool bLVKReverseZ = true;
 	uint32_t LVKNumBufferedFrames = 3;
 	uint32_t LVKNumSamplesMSAA = 1;
 	uint32_t LVKLosingFocusDelayMillisecond = 250;

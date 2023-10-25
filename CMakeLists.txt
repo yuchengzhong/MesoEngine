@@ -2,6 +2,7 @@
 cmake_minimum_required(VERSION 3.16)
 
 project("MesoEngine" CXX C)
+add_definitions(-DGLM_FORCE_DEPTH_ZERO_TO_ONE)
 
 set(Boost_DEBUG ON)
 set(Boost_USE_STATIC_LIBS ON)

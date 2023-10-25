@@ -230,6 +230,7 @@ public:
 	// Debug
 	FTimerSet DebugTimerSet;
 	bool bDebugGatherChunk = true;
+	bool DebugReverseZ = true;
 	FChunkPool()
 	{
 
@@ -242,8 +243,9 @@ public:
 	{
 		AtomicVisibilityChunkFrameStamp.fetch_add(1);
 	}
-	void Initialize(lvk::IContext* LVKContext, const FVoxelSceneConfig& VoxelSceneConfig, uint32_t ThreadCount_)
+	void Initialize(lvk::IContext* LVKContext, const FVoxelSceneConfig& VoxelSceneConfig, uint32_t ThreadCount_, bool DebugReverseZ_ = true)
 	{
+		DebugReverseZ = DebugReverseZ_;
 		ThreadCount = ThreadCount_;
 		AtomicVisibilityChunkFrameStamp.store(0);
 		MaxChunkCount = VoxelSceneConfig.MaxChunkCount;
@@ -325,7 +327,7 @@ public:
 			{
 				.loadOp = lvk::LoadOp_Load,
 				.storeOp = lvk::StoreOp_Store,
-				.clearDepth = 1.0f,
+				.clearDepth = DebugReverseZ ? 0.0f : 1.0f,
 			}
 		};
 		ShaderWireFrameVSInstance.UpdateShaderHandle(LVKContext);

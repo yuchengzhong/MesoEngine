@@ -1,9 +1,10 @@
 // Meso Engine 2024
 #include "VoxelCamera.h"
 
-void FVoxelCamera::InitializeVoxelCamera(float FovAngle_, float Near_, float Far_)
+void FVoxelCamera::InitializeVoxelCamera(float FovAngle_, float Near_, float Far_, float bReverseZ_)
 {
 	Fov = float(FovAngle_ * (M_PI / 180.0f));
+	bReverseZ = bReverseZ_;
 	Near = Near_;
 	Far = Far_;
 }
@@ -11,7 +12,7 @@ void FVoxelCamera::InitializeVoxelCamera(float FovAngle_, float Near_, float Far
 mat4 FVoxelCamera::GetProjectionMatrix(float ViewWidth, float ViewHeight) const
 {
 	const float AspectRatio = (float)ViewWidth / (float)ViewHeight;
-	mat4 Projection = glm::perspective(Fov, AspectRatio, Near, Far);
+	mat4 Projection = glm::perspective(Fov, AspectRatio, bReverseZ ? Far : Near, bReverseZ ? Near : Far);
 	return Projection;
 }
 

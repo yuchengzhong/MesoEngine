@@ -26,9 +26,10 @@ public:
 	float Fov = float(45.0f * (M_PI / 180.0f));
 	float Near = 0.1f;
 	float Far = 1000.0f;
+	bool bReverseZ = true;
 	ivec3 CameraChunkLocation = {0,0,0};
 	vec3 CameraForward = { 0,0,0 };
-	void InitializeVoxelCamera(float FovAngle_ = 45.0f, float Near_ = 0.5f, float Far_ = 1000.0f);
+	void InitializeVoxelCamera(float FovAngle_ = 45.0f, float Near_ = 0.5f, float Far_ = 1000.0f, float bReverseZ_ = true);
 
 	mat4 GetProjectionMatrix(float ViewWidth = 1920.0f, float ViewHeight = 1280.0f) const;
 	mat4 GetViewMatrix() const;
