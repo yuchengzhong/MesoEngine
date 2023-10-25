@@ -20,7 +20,7 @@ struct VoxelInstanceInitialConfig
 	uint32_t kNumSamplesMSAA = 1;
 	std::string FontPath = "";
 	float CameraFOV = 60.0f;
-	float CameraNear = 0.5f;
+	float CameraNear = 0.1f;
 	float CameraFar = 1000.0f;
 	bool bUseHDRForFinalBuffer = false;
 
@@ -30,6 +30,7 @@ struct VoxelInstanceInitialConfig
 
 	bool bWindowsResizeable = true;
 	bool bShowDemoWindow = true;
+	bool bReverseZ = true;
 
 	uint32_t LosingFocusDelayMillisecond = 250;
 
@@ -46,6 +47,7 @@ public:
 
 	bool bLVKEnableValidationLayers = false;
 	bool bLVKPreferIntegratedGPU = false;
+	bool bLVKReverseZ = true;
 	uint32_t LVKNumBufferedFrames = 3;
 	uint32_t LVKNumSamplesMSAA = 1;
 	uint32_t LVKLosingFocusDelayMillisecond = 250;

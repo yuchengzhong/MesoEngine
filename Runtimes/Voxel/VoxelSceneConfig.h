@@ -29,7 +29,7 @@ struct FVoxelSceneConfig
 
 	uint32_t MaxChunkCheckTimes = 128;
 	uint32_t MaxEmptyChunkCheckTimes = 128;
-	uint32_t MaxBlockCheckTimes = 4;
+	uint32_t MaxBlockCheckTimes = 16;
 
 	uint32_t BakeVisibilityViewNum = 256;
 	uint32_t ViewForwardLoadChunkSize = 24;

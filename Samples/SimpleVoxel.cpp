@@ -95,7 +95,12 @@ void main()
     }
     ivec3 ChunkOffset = InstanceChunkLocation - pc.Camera.CameraChunkLocation;
     ivec3 SubOffset = ReverseUnpackU8Vec3(InstanceBlockLocation);
-
+/*
+    ivec3 InstanceChunkLocation = ivec3(0, 0, 0);
+    ivec3 ChunkOffset = InstanceChunkLocation - pc.Camera.CameraChunkLocation;
+    ivec3 SubOffset = ivec3(0, 0, 0);
+*/
+//
     ivec3 ViewRelativeBlockOffset = ChunkOffset * int(pc.Scene.ChunkResolution) + SubOffset;
     float ChunkResolutionInv = 1.0 / pc.Scene.ChunkResolution;
     vec3 RealVertexPosition = 0.5 * VertexPosition * pc.Scene.BlockSize + ViewRelativeBlockOffset * ChunkResolutionInv * pc.Scene.ChunkSize;
@@ -163,7 +168,6 @@ public:
     uint32_t ThreadCount = 4;
 
     //High level manager
-    FBlockPoolHolder BlockPool;
     FChunkManage ChunkManager;
     SimpleVoxelWindowsInstance() {}
     void InitializeContext() override
@@ -171,18 +175,18 @@ public:
         VoxelWindowsInstance::InitializeContext();
         //Mesh shape
         CubeMesh.Initialize(LVKContext.get());
-
-        BlockPool.Initialize(LVKContext.get(), VoxelSceneConfig);
     }
     void InitializeBegin() override
     {
         VoxelWindowsInstance::InitializeBegin();
         uint32_t MaxCPUCoreNum = boost::thread::hardware_concurrency();
         ThreadCount = std::min(std::max(MaxCPUCoreNum - 2u, 1u), VoxelSceneConfig.MaxUnsyncedLoadChunkCount);
-        ChunkManager.Initialize(LVKContext.get(), ThreadCount, VoxelSceneConfig, [](ivec3 StartLocation, float BlockSize, unsigned char ChunkResolution, uint32_t MipmapLevel)
+
+        auto GeneratorInstance = [](ivec3 StartLocation, float BlockSize, unsigned char ChunkResolution, uint32_t MipmapLevel)
             {
                 return FGeneratorHelper::GenerateSphere(StartLocation, BlockSize, ChunkResolution, MipmapLevel);
-            });
+            };
+        ChunkManager.Initialize(LVKContext.get(), ThreadCount, VoxelSceneConfig, GeneratorInstance, bLVKReverseZ);
     }
     void WhenCameraChunkUpdate() override
     {
@@ -202,7 +206,7 @@ public:
         lvk::TextureDesc DescDepth =
         {
             .type = lvk::TextureType_2D,
-            .format = lvk::Format_Z_UN24,
+            .format = bLVKReverseZ ? lvk::Format_Z_F32 : lvk::Format_Z_UN24, 
             .dimensions = {(uint32_t)WindowsWidth, (uint32_t)WindowsHeight},
             .usage = lvk::TextureUsageBits_Attachment | lvk::TextureUsageBits_Sampled,
             .numMipLevels = lvk::calcNumMipLevels((uint32_t)WindowsWidth, (uint32_t)WindowsHeight),
@@ -237,7 +241,7 @@ public:
             {
                 .loadOp = lvk::LoadOp_Clear,
                 .storeOp = lvk::StoreOp_Store,
-                .clearDepth = 1.0f,
+                .clearDepth = bLVKReverseZ ? 0.0f : 1.0f,
             }
         };
     }
@@ -295,13 +299,13 @@ public:
                 Buffer.cmdBindRenderPipeline(RPLVoxelInstance);
                 BindViewportScissor(Buffer);
                 Buffer.cmdPushDebugGroupLabel("Render Voxels", 0xa0ffa0ff);
-                Buffer.cmdBindDepthState({ .compareOp = lvk::CompareOp_Less, .isDepthWriteEnabled = true });
+                Buffer.cmdBindDepthState({ .compareOp = bLVKReverseZ ? lvk::CompareOp_Greater : lvk::CompareOp_Less, .isDepthWriteEnabled = true });
                 Buffer.cmdBindVertexBuffer(0, CubeMesh.VertexBuffer, 0);
                 Buffer.cmdBindVertexBuffer(1, ChunkManager.ChunkPool.BlockBuffer, 0);
                 Buffer.cmdBindIndexBuffer(CubeMesh.IndexBuffer, lvk::IndexFormat_UI16);
 
                 Buffer.cmdPushConstants(GlobalChunkBlockUBOBinding);
-                Buffer.cmdDrawIndexed(CubeMesh.GetIndexSize(), ChunkManager.ChunkPool.MaxBlockCount); // <-------- TODO: Culling scan in cs, draw indirect
+                Buffer.cmdDrawIndexed(CubeMesh.GetIndexSize(), ChunkManager.ChunkPool.MaxBlockCount); //1  // <-------- TODO: Culling scan in cs, draw indirect
                 Buffer.cmdPopDebugGroupLabel();
             }
             Buffer.cmdEndRendering();

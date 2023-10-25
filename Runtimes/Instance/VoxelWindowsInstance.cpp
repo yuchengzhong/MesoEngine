@@ -36,6 +36,7 @@ void VoxelWindowsInstance::Initialize(const VoxelInstanceInitialConfig& InitialC
         bUseHDRForFinalBuffer = InitialConfig.bUseHDRForFinalBuffer;
         bWindowsResizeable = InitialConfig.bWindowsResizeable;
         bShowDemoWindow = InitialConfig.bShowDemoWindow;
+        bLVKReverseZ = InitialConfig.bReverseZ;
         LVKLosingFocusDelayMillisecond = InitialConfig.LosingFocusDelayMillisecond;
 
 #ifndef __APPLE__
@@ -79,7 +80,7 @@ void VoxelWindowsInstance::Initialize(const VoxelInstanceInitialConfig& InitialC
 void VoxelWindowsInstance::InitializeCameraAndScene(const VoxelInstanceInitialConfig& InitialConfig)
 {
     //Initialize Camera
-    WindowsCamera.InitializeVoxelCamera(InitialConfig.CameraFOV, InitialConfig.CameraNear, InitialConfig.CameraFar);
+    WindowsCamera.InitializeVoxelCamera(InitialConfig.CameraFOV, InitialConfig.CameraNear, InitialConfig.CameraFar, bLVKReverseZ);
     //Binding
     WindowsCamera.SetCameraChunkUpdateCallback([this]()
         {
@@ -302,7 +303,7 @@ void VoxelWindowsInstance::CreateWindowsFrameBuffer()
         .type = lvk::TextureType_2D,
         .format = Format,
         .dimensions = {(uint32_t)WindowsWidth, (uint32_t)WindowsHeight},
-        .usage = lvk::TextureUsageBits_Attachment | lvk::TextureUsageBits_Sampled | lvk::TextureUsageBits_Storage,
+        .usage = lvk::TextureUsageBits_Attachment | lvk::TextureUsageBits_Sampled, // | lvk::TextureUsageBits_Storage
         .numMipLevels = lvk::calcNumMipLevels((uint32_t)WindowsWidth, (uint32_t)WindowsHeight),
         .debugName = "Offscreen framebuffer (color)",
     };

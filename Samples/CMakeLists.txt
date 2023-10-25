@@ -2,7 +2,6 @@
 cmake_minimum_required(VERSION 3.16)
 
 set(PROJECT_NAME "MesoEngine Samples")
-
 if(MSVC)
   add_definitions(-D_CONSOLE)
 else()
@@ -25,7 +24,6 @@ endfunction()
 
 macro(ADD_DEMO app)
     add_executable(${app} "${app}.cpp")
-    target_compile_options(${app} PRIVATE -O3)
     MESO_set_cxxstd(${app} 20)
     MESO_set_folder(${app} ${PROJECT_NAME})
     target_link_libraries(${app} PRIVATE LVKLibrary)
