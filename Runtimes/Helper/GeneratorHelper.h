@@ -131,7 +131,7 @@ struct FGeneratorHelper
                     dvec3 ChunkStartLocation = (dvec3)StartLocation * (double)BlockSize * (double)ChunkResolution;
                     dvec3 BlockCenterLocation = ChunkStartLocation + dvec3{ X,Y,Z } *(double)BlockSize;
 
-                    double d = length(BlockCenterLocation - dvec3{100.0, 0.0, 0.0}) - 50.0;
+                    double d = length(BlockCenterLocation - dvec3{100.0, 0.0, 0.0}) - 45.0;
                     if (d < 0.0)
                     {
                         Result.AddBlock(
