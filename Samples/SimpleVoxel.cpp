@@ -378,7 +378,8 @@ public:
                 Buffer.cmdPopDebugGroupLabel();
             }
             Buffer.cmdEndRendering();
-            ChunkManager.ChunkPool.MainRenderThreadSummitHandle = LVKContext->submit(Buffer);
+            //Buffer.transitionToShaderReadOnly(FBVoxelInstance.color[0].texture);
+            LVKContext->submit(Buffer); //ChunkManager.ChunkPool.MainRenderThreadSummitHandle = 
         }
         //Debug visible chunk
         {
