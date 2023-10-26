@@ -180,7 +180,7 @@ class VulkanSwapchain final {
   enum { LVK_MAX_SWAPCHAIN_IMAGES = 16 };
 
  public:
-  VulkanSwapchain(VulkanContext& ctx, uint32_t width, uint32_t height);
+  VulkanSwapchain(VulkanContext& ctx, uint32_t width, uint32_t height, uint32_t DesiredSwapchainBufferNum);
   ~VulkanSwapchain();
 
   Result present(VkSemaphore waitSemaphore);
@@ -529,7 +529,7 @@ class VulkanContext final : public IContext {
 
   uint32_t queryDevices(HWDeviceType deviceType, HWDeviceDesc* outDevices, uint32_t maxOutDevices = 1);
   lvk::Result initContext(const HWDeviceDesc& desc);
-  lvk::Result initSwapchain(uint32_t width, uint32_t height);
+  lvk::Result initSwapchain(uint32_t width, uint32_t height, uint32_t DesiredSwapchainBufferNum);
 
   std::shared_ptr<VulkanImage> createImage(VkImageType imageType,
                                            VkExtent3D extent,

@@ -12,7 +12,7 @@ constexpr bool kEnableValidationLayers = true;
 #endif
 constexpr bool kPreferIntegratedGPU = false;
 constexpr uint32_t kNumSamplesMSAA = 1;
-constexpr uint32_t kNumBufferedFrames = 3;
+constexpr uint32_t kNumBufferedFrames = 4;
 
 class ShaderInstanceVoxelBase :public ShaderBase
 {
@@ -153,6 +153,16 @@ void main()
         {
             InstanceChunkLocation = CachedChunk.ChunkLocation;
         }
+        else
+        {
+            gl_Position = vec4(0.0, 0.0, -1.0, 1.0);
+            return;
+        }
+    }
+    else
+    {
+        gl_Position = vec4(0.0, 0.0, -1.0, 1.0);
+        return;
     }
     ivec3 ChunkOffset = InstanceChunkLocation - pc.Camera.CameraChunkLocation.xyz;
     ivec3 SubOffset = ReverseUnpackU8Vec3(InstanceBlockLocation);
@@ -254,7 +264,7 @@ public:
             {
                 return FGeneratorHelper::GenerateSphere(StartLocation, BlockSize, ChunkResolution, MipmapLevel);
             };
-        ChunkManager.Initialize(LVKContext.get(), ThreadCount, VoxelSceneConfig, GeneratorInstance, bLVKReverseZ, kNumBufferedFrames);
+        ChunkManager.Initialize(LVKContext.get(), ThreadCount, VoxelSceneConfig, GeneratorInstance, bLVKReverseZ, LVKNumBufferedFrames);
     }
     void WhenCameraChunkUpdate() override
     {
@@ -384,12 +394,6 @@ public:
         //Debug visible chunk
         {
             ChunkManager.DrawDebugVisibleChunk(LVKContext.get(), GlobalUBOBinding);
-        }
-        //
-        {
-            //lvk::ICommandBuffer& Buffer = LVKContext->acquireCommandBuffer();
-            //Buffer.transitionToShaderReadOnly(FBVoxelInstance.color[0].texture); //Transit
-            //LVKContext->submit(Buffer);
         }
     }
     void ProcessRenderImgui() override

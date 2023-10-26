@@ -1315,7 +1315,7 @@ VkImageView lvk::VulkanTexture::getOrCreateVkImageViewForFramebuffer(uint8_t lev
   return imageViewForFramebuffer_[level][layer];
 }
 
-lvk::VulkanSwapchain::VulkanSwapchain(VulkanContext& ctx, uint32_t width, uint32_t height) :
+lvk::VulkanSwapchain::VulkanSwapchain(VulkanContext& ctx, uint32_t width, uint32_t height, uint32_t DesiredSwapchainBufferNum) :
   ctx_(ctx), device_(ctx.vkDevice_), graphicsQueue_(ctx.deviceQueues_.graphicsQueue), width_(width), height_(height) {
   surfaceFormat_ = chooseSwapSurfaceFormat(ctx.deviceSurfaceFormats_, ctx.config_.swapChainColorSpace);
 
@@ -1331,8 +1331,8 @@ lvk::VulkanSwapchain::VulkanSwapchain(VulkanContext& ctx, uint32_t width, uint32
       ctx.getVkPhysicalDevice(), ctx.deviceQueues_.graphicsQueueFamilyIndex, ctx.vkSurface_, &queueFamilySupportsPresentation));
   LVK_ASSERT_MSG(queueFamilySupportsPresentation == VK_TRUE, "The queue family used with the swapchain does not support presentation");
 
-  auto chooseSwapImageCount = [](const VkSurfaceCapabilitiesKHR& caps) -> uint32_t {
-    const uint32_t desired = caps.minImageCount + 1;
+  auto chooseSwapImageCount = [DesiredSwapchainBufferNum](const VkSurfaceCapabilitiesKHR& caps) -> uint32_t {
+    const uint32_t desired = std::max(DesiredSwapchainBufferNum, caps.minImageCount + 1);
     const bool exceeded = caps.maxImageCount > 0 && desired > caps.maxImageCount;
     return exceeded ? caps.maxImageCount : desired;
   };
@@ -4017,7 +4017,7 @@ lvk::TextureHandle lvk::VulkanContext::getCurrentSwapchainTexture() {
 }
 
 void lvk::VulkanContext::recreateSwapchain(int newWidth, int newHeight) {
-  initSwapchain(newWidth, newHeight);
+  initSwapchain(newWidth, newHeight, swapchain_->getNumSwapchainImages());
 }
 
 uint32_t lvk::VulkanContext::getFramebufferMSAABitMask() const {
@@ -4645,7 +4645,7 @@ lvk::Result lvk::VulkanContext::initContext(const HWDeviceDesc& desc) {
   return Result();
 }
 
-lvk::Result lvk::VulkanContext::initSwapchain(uint32_t width, uint32_t height) {
+lvk::Result lvk::VulkanContext::initSwapchain(uint32_t width, uint32_t height, uint32_t DesiredSwapchainBufferNum) {
   if (!vkDevice_ || !immediate_) {
     LLOGW("Call initContext() first");
     return Result(Result::Code::RuntimeError, "Call initContext() first");
@@ -4661,7 +4661,7 @@ lvk::Result lvk::VulkanContext::initSwapchain(uint32_t width, uint32_t height) {
     return Result();
   }
 
-  swapchain_ = std::make_unique<lvk::VulkanSwapchain>(*this, width, height);
+  swapchain_ = std::make_unique<lvk::VulkanSwapchain>(*this, width, height, DesiredSwapchainBufferNum);
 
   return swapchain_ ? Result() : Result(Result::Code::RuntimeError, "Failed to create swapchain");
 }

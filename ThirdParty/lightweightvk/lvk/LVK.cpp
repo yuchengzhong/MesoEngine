@@ -338,7 +338,7 @@ std::unique_ptr<lvk::IContext> lvk::createVulkanContextWithSwapchain(GLFWwindow*
   }
 
   if (width > 0 && height > 0) {
-    res = ctx->initSwapchain(width, height);
+    res = ctx->initSwapchain(width, height, cfg.swapchainBufferedNum);
     if (!res.isOk()) {
       LVK_ASSERT_MSG(false, "Failed to create swapchain");
       return nullptr;

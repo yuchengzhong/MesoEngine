@@ -16,7 +16,7 @@ struct VoxelInstanceInitialConfig
 {
 	bool bEnableValidationLayers;
 	bool bPreferIntegratedGPU;
-	uint32_t kNumBufferedFrames = 3;
+	uint32_t kNumBufferedFrames = 4;
 	uint32_t kNumSamplesMSAA = 1;
 	std::string FontPath = "";
 	float CameraFOV = 60.0f;

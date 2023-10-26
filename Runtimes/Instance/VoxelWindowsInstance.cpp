@@ -106,6 +106,7 @@ void VoxelWindowsInstance::InitializeContext()
         WindowsHeight,
         {
             .enableValidation = bLVKEnableValidationLayers,
+            .swapchainBufferedNum = LVKNumBufferedFrames,
         },
         bLVKPreferIntegratedGPU ? lvk::HWDeviceType_Integrated : lvk::HWDeviceType_Discrete);
 
@@ -118,7 +119,7 @@ void VoxelWindowsInstance::InitializeContext()
                                                      .debugName = "Buffer: camera uniforms (per frame)" }, nullptr));
     }
     UBOSceneConfig = LVKContext->createBuffer({ .usage = lvk::BufferUsageBits_Uniform,
-                                                 .storage = lvk::StorageType_HostVisible,
+                                                 .storage = lvk::StorageType_Device,
                                                  .size = sizeof(FGPUUniformSceneConfig),
                                                  .debugName = "Buffer: voxel scene uniforms (static)" }, nullptr);
 
