@@ -22,8 +22,8 @@ struct FVoxelSceneConfig
 	unsigned char BlockResolution = 8; //This won't change basically
 	float BlockSize = 1.0f;
 	unsigned char ChunkResolution = 16;
-	uint32_t MaxBlockCount = 65536 * 8;
-	uint32_t MaxVolumeCount = 65536 * 8;
+	uint32_t MaxBlockCount = 65536 * 16;
+	uint32_t MaxVolumeCount = 65536 * 16;
 	uint32_t MaxChunkCount = 8192 * 2;
 	uint32_t MaxEmptyChunkCount = 8192 * 4;
 

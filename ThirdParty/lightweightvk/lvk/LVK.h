@@ -859,6 +859,7 @@ struct ContextConfig {
   // owned by the application - should be alive until createVulkanContextWithSwapchain() returns
   const void* pipelineCacheData = nullptr;
   size_t pipelineCacheDataSize = 0;
+  uint32_t swapchainBufferedNum = 3;
 };
 
 [[nodiscard]] bool isDepthOrStencilFormat(lvk::Format format);
