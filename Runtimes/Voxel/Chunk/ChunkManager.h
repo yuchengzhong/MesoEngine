@@ -75,7 +75,9 @@ public:
 	std::queue<ivec3> RestDesiredToLoadChunkLocations;
 	//GPU
 	uint32_t CurrentChunkCount = 0;
-	//
+	//Buffer Num
+	uint32_t BufferedFramesNum = 1;
+	uint32_t RenderFrameIndex = 0;
 	//Wait for all thread finish
 	FChunkManage()
 	{
@@ -85,12 +87,13 @@ public:
 	{
 		GeneratorThreadPool.WaitForTasksToComplete();
 	}
-	void Initialize(lvk::IContext* LVKContext, const uint32_t& ThreadCount, const FVoxelSceneConfig& VoxelSceneConfig, GeneratorType Generator_, bool bDebugReverseZ_ = true)
+	void Initialize(lvk::IContext* LVKContext, const uint32_t& ThreadCount, const FVoxelSceneConfig& VoxelSceneConfig, GeneratorType Generator_, bool bDebugReverseZ_ = true, uint32_t BufferedFramesNum_ = 1)
 	{
 		bDebugReverseZ = bDebugReverseZ_;
+		BufferedFramesNum = BufferedFramesNum_;
 
 		GeneratorThreadPool.Initialize(ThreadCount);// leave some cores for youtube
-		ChunkPool.Initialize(LVKContext, VoxelSceneConfig, ThreadCount, bDebugReverseZ);
+		ChunkPool.Initialize(LVKContext, VoxelSceneConfig, ThreadCount, bDebugReverseZ, BufferedFramesNum);
 		//
 		SetGenerator(std::move(Generator_));
 		//Bake visibility
@@ -205,12 +208,13 @@ public:
 			}
 		}
 	}
-	void UpdateLoadingQueue(lvk::IContext* LVKContext, ivec3 CameraChunkLocation, vec3 CameraForwardVector, const FVoxelSceneConfig& VoxelSceneConfig)
+	void UpdateLoadingQueue(lvk::IContext* LVKContext, ivec3 CameraChunkLocation, vec3 CameraForwardVector, const FVoxelSceneConfig& VoxelSceneConfig, uint32_t RenderFrameIndex_)
 	{
 		uint32_t CurrentSyncedChunkCount = 0;
 		double DeltaSyncedTime = 0;
 		uint32_t CurrentMultiThreadChunkCount = 0;
 		double DeltaMultiThreadTime = 0;
+		RenderFrameIndex = RenderFrameIndex_;
 		FTimer Timer;
 
 		const uint64_t CurrentTaskFrameStamp = ChunkPool.AtomicGetCurrentChunkFrameStamp();
@@ -392,7 +396,7 @@ public:
 		}
 		//Visualize
 		//For Debug
-		ChunkPool.UpdateDebugVisibleChunk(LVKContext, VoxelSceneConfig);
+		ChunkPool.UpdateDebugVisibleChunk(LVKContext, VoxelSceneConfig, RenderFrameIndex);
 	}
 	template<typename Struct>
 	void DrawDebugVisibleChunk(lvk::IContext* LVKContext, const Struct& PushConstantData)
@@ -409,7 +413,7 @@ public:
 				Buffer.cmdPushDebugGroupLabel("Render Visibility Chunk Wireframe", 0xff0000ff);
 				Buffer.cmdBindDepthState({ .compareOp = bDebugReverseZ ? lvk::CompareOp_Greater:lvk::CompareOp_Less, .isDepthWriteEnabled = true });
 				Buffer.cmdBindVertexBuffer(0, ChunkPool.OctahedronMesh.VertexBuffer, 0);
-				Buffer.cmdBindVertexBuffer(1, ChunkPool.DebugInstanceBuffer, 0);
+				Buffer.cmdBindVertexBuffer(1, ChunkPool.DebugInstanceBuffer[RenderFrameIndex], 0);
 
 				Buffer.cmdPushConstants(PushConstantData);
 				Buffer.cmdBindIndexBuffer(ChunkPool.OctahedronMesh.IndexBuffer, lvk::IndexFormat_UI16);
