@@ -123,6 +123,8 @@ VkPrimitiveTopology topologyToVkPrimitiveTopology(lvk::Topology t) {
     return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
   case lvk::Topology_TriangleStrip:
     return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+  case lvk::Topology_TriangleFan:
+    return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN;
   }
   LVK_ASSERT_MSG(false, "Implement Topology = %u", (uint32_t)t);
   return VK_PRIMITIVE_TOPOLOGY_MAX_ENUM;
@@ -2508,6 +2510,27 @@ void lvk::CommandBuffer::cmdDrawIndexedIndirect(BufferHandle indirectBuffer,
 
   vkCmdDrawIndexedIndirect(
       wrapper_->cmdBuf_, bufIndirect->vkBuffer_, indirectBufferOffset, drawCount, stride ? stride : sizeof(VkDrawIndexedIndirectCommand));
+}
+void lvk::CommandBuffer::cmdDrawIndexedIndirectCount(BufferHandle indirectBuffer,
+                                                     size_t indirectBufferOffset,
+                                                     BufferHandle indirectCountBuffer,
+                                                     size_t indirectCountBufferOffset,
+                                                     uint32_t maxDrawCount,
+                                                     uint32_t stride) {
+  LVK_PROFILER_FUNCTION();
+
+  bindGraphicsPipeline();
+
+  lvk::VulkanBuffer* bufIndirect = ctx_->buffersPool_.get(indirectBuffer);
+  lvk::VulkanBuffer* bufIndirectCount = ctx_->buffersPool_.get(indirectCountBuffer);
+
+  vkCmdDrawIndexedIndirectCount(wrapper_->cmdBuf_,
+                                bufIndirect->vkBuffer_,
+                                indirectBufferOffset,
+                                bufIndirectCount->vkBuffer_,
+                                indirectCountBufferOffset,
+                                maxDrawCount,
+                                stride ? stride : sizeof(VkDrawIndexedIndirectCommand));
 }
 
 void lvk::CommandBuffer::cmdSetBlendColor(const float color[4]) {

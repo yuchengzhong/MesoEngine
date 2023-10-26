@@ -221,6 +221,8 @@ public:
 	lvk::Holder<lvk::BufferHandle> DebugInstanceBuffer;
 	lvk::Holder<lvk::BufferHandle> ChunkBuffer;
 	lvk::Holder<lvk::BufferHandle> BlockBuffer;
+	lvk::SubmitHandle MainRenderThreadSummitHandle;//For getting fence
+	
 	FOctahedronHolder OctahedronMesh;
 
 	uint32_t CurrentDebugDrawInstanceCount = 0;
@@ -342,7 +344,7 @@ public:
 		};
 		lvk::RenderPipelineDesc DebugInstanceDescriptor =
 		{
-			.vertexInput = FGPUSimpleInstanceData::GetInstanceDescriptor(),
+			.vertexInput = FGPUSimpleInstanceData::GetInstanceAndVertexDescriptor(),
 			.smVert = ShaderWireFrameVSInstance.SMHandle,
 			.smFrag = ShaderWireFrameFSInstance.SMHandle,
 			.color = {{.format = LVKContext->getFormat(FBDebugInstance.color[0].texture)}},

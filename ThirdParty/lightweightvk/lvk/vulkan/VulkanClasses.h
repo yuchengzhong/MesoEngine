@@ -395,6 +395,12 @@ class CommandBuffer final : public ICommandBuffer {
                       uint32_t baseInstance) override;
   void cmdDrawIndirect(BufferHandle indirectBuffer, size_t indirectBufferOffset, uint32_t drawCount, uint32_t stride = 0) override;
   void cmdDrawIndexedIndirect(BufferHandle indirectBuffer, size_t indirectBufferOffset, uint32_t drawCount, uint32_t stride = 0) override;
+  void cmdDrawIndexedIndirectCount(BufferHandle indirectBuffer,
+                                   size_t indirectBufferOffset,
+                                   BufferHandle indirectCountBuffer,
+                                   size_t indirectCountBufferOffset,
+                                   uint32_t maxDrawCount,
+                                   uint32_t stride) override;
 
   void cmdSetBlendColor(const float color[4]) override;
   void cmdSetDepthBias(float depthBias, float slopeScale, float clamp) override;

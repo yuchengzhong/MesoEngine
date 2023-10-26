@@ -31,7 +31,7 @@ public:
 };
 
 
-template<typename T>
+template<typename T, bool bIndexOnly = false>
 class FShapeHolderBase
 {
 public:
@@ -43,18 +43,21 @@ public:
         static_assert(std::is_base_of_v<FShapeBase, T>, "T must be derived from FShapeBase");
         T DummyShape;
         auto Meshes = DummyShape.GetGPUMeshes(1.0);
-        const auto& VertexData = std::get<0>(Meshes);
+        if constexpr (!bIndexOnly)
+        {
+            const auto& VertexData = std::get<0>(Meshes);
+            VertexBuffer = LVKContext->createBuffer(
+                {
+                    .usage = lvk::BufferUsageBits_Vertex,
+                    .storage = lvk::StorageType_Device,
+                    .size = sizeof(FGPUSimpleVertexData) * VertexData.size(),
+                    .data = VertexData.data(),
+                    .debugName = "Buffer: vertex"
+                },
+                nullptr);
+        }
         const auto& IndexData = std::get<1>(Meshes);
         ShapeIndexCount = std::get<2>(Meshes);
-        VertexBuffer = LVKContext->createBuffer(
-            {
-                .usage = lvk::BufferUsageBits_Vertex,
-                .storage = lvk::StorageType_Device,
-                .size = sizeof(FGPUSimpleVertexData) * VertexData.size(),
-                .data = VertexData.data(),
-                .debugName = "Buffer: vertex"
-            },
-            nullptr);
         IndexBuffer = LVKContext->createBuffer(
             {
                 .usage = lvk::BufferUsageBits_Index,

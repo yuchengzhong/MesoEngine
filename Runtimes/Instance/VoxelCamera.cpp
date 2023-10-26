@@ -34,7 +34,8 @@ FGPUUniformCamera FVoxelCamera::GetCameraUniform(float ViewWidth, float ViewHeig
 	{
 		.Projection = GetProjectionMatrix(ViewWidth, ViewHeight),
 		.View = GetViewMatrix(),
-		.CameraChunkLocation = CameraChunkLocation
+		.CameraChunkLocation = ivec4(CameraChunkLocation, 0),
+		.SubCameraLocation = ivec4(FullCamera.getPosition(), 0.0)
 	};
 }
 

@@ -33,7 +33,7 @@ void main()
     mat4 Projection = pc.Camera.Projection;
     mat4 View = pc.Camera.View;
 
-    ivec3 ChunkOffset = InstanceChunkLocation - pc.Camera.CameraChunkLocation;
+    ivec3 ChunkOffset = InstanceChunkLocation - pc.Camera.CameraChunkLocation.xyz;
     vec3 RealVertexPosition = VertexPosition * InstanceScale + vec3(ChunkOffset) * pc.Scene.ChunkSize;
     gl_Position = Projection * View * vec4(RealVertexPosition, 1.0);
     OutColor = InstanceMarker > 0.5 ? vec3(SATURATION, SATURATION, 1.0) : vec3(SATURATION, 1.0, SATURATION);
