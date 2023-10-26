@@ -413,6 +413,8 @@ void VoxelWindowsInstance::RenderStart()
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(LVKLosingFocusDelayMillisecond));
     }
+    FGPUUniformCamera CurrentCameraUniform = WindowsCamera.GetCameraUniform(WindowsWidth, WindowsHeight);
+    LVKContext->upload(UBOCamera[RenderFrameIndex], &CurrentCameraUniform, sizeof(CurrentCameraUniform));
 }
 
 void VoxelWindowsInstance::BindViewportScissor(lvk::ICommandBuffer& Buffer)
@@ -436,8 +438,6 @@ void VoxelWindowsInstance::RenderEnd()
     }
 
     FBSwapchain.color[0].texture = LVKContext->getCurrentSwapchainTexture();
-    FGPUUniformCamera CurrentCameraUniform = WindowsCamera.GetCameraUniform(WindowsWidth, WindowsHeight);
-    LVKContext->upload(UBOCamera[RenderFrameIndex], &CurrentCameraUniform, sizeof(CurrentCameraUniform));
 
     //Command buffers (1-N per thread): create, submit and forget
     //Render into the swapchain image

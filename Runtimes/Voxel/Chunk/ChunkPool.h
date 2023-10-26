@@ -221,7 +221,7 @@ public:
 	std::vector<lvk::Holder<lvk::BufferHandle>> DebugInstanceBuffer;
 	std::vector<lvk::Holder<lvk::BufferHandle>> ChunkBuffer;
 	std::vector<lvk::Holder<lvk::BufferHandle>> BlockBuffer;
-	lvk::SubmitHandle MainRenderThreadSummitHandle;//For getting fence
+	//lvk::SubmitHandle MainRenderThreadSummitHandle;//For getting fence
 	
 	FOctahedronHolder OctahedronMesh;
 
