@@ -205,8 +205,8 @@ public:
 	uint32_t MaxBlockCheckTimes = 0;
 
 	//Runtime
-	std::atomic<bool> bAtomicDebugVisibleChunkDirty = false;
-	std::atomic<bool> bAtomicVisibleChunkDirty = false;
+	TAtomicVector<bool> bAtomicDebugVisibleChunkDirty;
+	TAtomicVector<bool> bAtomicVisibleChunkDirty;
 	//Debug
 	inline static std::string DebugMarkGatherVisibleChunk = "GatherVisibleChunk";
 	inline static std::string DebugMarkUploadVisibleChunk = "UploadVisibleChunk";
@@ -218,9 +218,9 @@ public:
 	lvk::Framebuffer FBDebugInstance;
 	lvk::RenderPass RPDebugInstance;
 	lvk::Holder<lvk::RenderPipelineHandle> RPLDebugInstance;
-	lvk::Holder<lvk::BufferHandle> DebugInstanceBuffer;
-	lvk::Holder<lvk::BufferHandle> ChunkBuffer;
-	lvk::Holder<lvk::BufferHandle> BlockBuffer;
+	std::vector<lvk::Holder<lvk::BufferHandle>> DebugInstanceBuffer;
+	std::vector<lvk::Holder<lvk::BufferHandle>> ChunkBuffer;
+	std::vector<lvk::Holder<lvk::BufferHandle>> BlockBuffer;
 	lvk::SubmitHandle MainRenderThreadSummitHandle;//For getting fence
 	
 	FOctahedronHolder OctahedronMesh;
@@ -233,6 +233,8 @@ public:
 	FTimerSet DebugTimerSet;
 	bool bDebugGatherChunk = true;
 	bool DebugReverseZ = true;
+	//Buffer Num
+	uint32_t BufferedFramesNum = 1;
 	FChunkPool()
 	{
 
@@ -245,9 +247,10 @@ public:
 	{
 		AtomicVisibilityChunkFrameStamp.fetch_add(1);
 	}
-	void Initialize(lvk::IContext* LVKContext, const FVoxelSceneConfig& VoxelSceneConfig, uint32_t ThreadCount_, bool DebugReverseZ_ = true)
+	void Initialize(lvk::IContext* LVKContext, const FVoxelSceneConfig& VoxelSceneConfig, uint32_t ThreadCount_, bool DebugReverseZ_ = true, uint32_t BufferedFramesNum_ = 1)
 	{
 		DebugReverseZ = DebugReverseZ_;
+		BufferedFramesNum = BufferedFramesNum_;
 		ThreadCount = ThreadCount_;
 		AtomicVisibilityChunkFrameStamp.store(0);
 		MaxChunkCount = VoxelSceneConfig.MaxChunkCount;
@@ -288,33 +291,51 @@ public:
 		//
 		//For Debug
 		OctahedronMesh.Initialize(LVKContext);
-		DebugInstanceBuffer = LVKContext->createBuffer(
-			{
-				.usage = lvk::BufferUsageBits_Vertex,
-				.storage = lvk::StorageType_HostVisible,
-				.size = sizeof(FGPUSimpleInstanceData) * (MaxChunkCount + MaxEmptyChunkCount),
-				.data = nullptr,
-				.debugName = "Buffer: instance of visible chunk debug"
-			},
-			nullptr);
-		BlockBuffer = LVKContext->createBuffer(
-			{
-				.usage = lvk::BufferUsageBits_Vertex,
-				.storage = lvk::StorageType_HostVisible,
-				.size = sizeof(FGPUBlock) * (MaxBlockCount),
-				.data = nullptr,
-				.debugName = "Buffer: instance of visible chunk debug"
-			},
-			nullptr);
-		ChunkBuffer = LVKContext->createBuffer(
-			{
-				.usage = lvk::BufferUsageBits_Storage,
-				.storage = lvk::StorageType_HostVisible,
-				.size = sizeof(FGPUChunk) * (MaxChunkCount),
-				.data = nullptr,
-				.debugName = "Buffer: gpu chunk ssbo"
-			},
-			nullptr);
+		//
+		bAtomicDebugVisibleChunkDirty.Initialize(BufferedFramesNum);
+		bAtomicVisibleChunkDirty.Initialize(BufferedFramesNum);
+		//
+		DebugInstanceBuffer.clear();
+		for (uint32_t i = 0; i < BufferedFramesNum; i++)
+		{
+			DebugInstanceBuffer.push_back(LVKContext->createBuffer(
+				{
+					.usage = lvk::BufferUsageBits_Vertex,
+					.storage = lvk::StorageType_HostVisible,
+					.size = sizeof(FGPUSimpleInstanceData) * (MaxChunkCount + MaxEmptyChunkCount),
+					.data = nullptr,
+					.debugName = "Buffer: instance of visible chunk debug"
+				},
+				nullptr));
+		}
+		//
+		BlockBuffer.clear();
+		for (uint32_t i = 0; i < BufferedFramesNum; i++)
+		{
+			BlockBuffer.push_back(LVKContext->createBuffer(
+				{
+					.usage = lvk::BufferUsageBits_Vertex,
+					.storage = lvk::StorageType_HostVisible,
+					.size = sizeof(FGPUBlock) * (MaxBlockCount),
+					.data = nullptr,
+					.debugName = "Buffer: instance of visible chunk debug"
+				},
+				nullptr));
+		}
+		//
+		ChunkBuffer.clear();
+		for (uint32_t i = 0; i < BufferedFramesNum; i++)
+		{
+			ChunkBuffer.push_back(LVKContext->createBuffer(
+				{
+					.usage = lvk::BufferUsageBits_Storage,
+					.storage = lvk::StorageType_HostVisible,
+					.size = sizeof(FGPUChunk) * (MaxChunkCount),
+					.data = nullptr,
+					.debugName = "Buffer: gpu chunk ssbo"
+				},
+				nullptr));
+		}
 		RPDebugInstance =
 		{
 			.color =
@@ -586,8 +607,11 @@ inline void PushToPool(uint32_t MaxChunkCount, FTLSChunkPool& MemoryPool, FTLSCh
 			// Push modify buffer to front
 			ModifyQueue.Push(std::move(ModifyBuffer));
 			// Mark dirty
-			bAtomicDebugVisibleChunkDirty.store(true);
-			bAtomicVisibleChunkDirty.store(true);
+			for (uint32_t i = 0; i < BufferedFramesNum; i++)
+			{
+				bAtomicDebugVisibleChunkDirty.Set(i, true);
+				bAtomicVisibleChunkDirty.Set(i, true);
+			}
 			return;
 		}
 		else
@@ -618,23 +642,6 @@ inline void PushToPool(uint32_t MaxChunkCount, FTLSChunkPool& MemoryPool, FTLSCh
 	{
 		CurrentDebugDrawInstanceCount = 0;
 		CurrentBlockCount = 0;
-		/*
-		boost::thread_group ThreadGroup;
-		for (uint32_t i = 0; i < ThreadCount; i++)
-		{
-			ThreadGroup.create_thread([i, this, &VoxelSceneConfig]()
-				{
-					TLSChunkPoolModifyBufferQueue[i]->Swap();
-					TLSChunkPoolRead[i].ConsumeQueue(*TLSChunkPoolModifyBufferQueue[i]);
-				});
-		}
-		ThreadGroup.join_all();
-		for (uint32_t i = 0; i < ThreadCount; i++)
-		{
-			CurrentDebugDrawInstanceCount += TLSChunkPool[i].SubCurrentDebugDrawInstanceCount;
-			CurrentBlockCount += TLSChunkPool[i].SubCurrentBlockCount;
-		}
-		*/
 		for (uint32_t i = 0; i < ThreadCount; i++)
 		{
 			TLSChunkPoolModifyBufferQueue[i]->Swap();
@@ -643,56 +650,56 @@ inline void PushToPool(uint32_t MaxChunkCount, FTLSChunkPool& MemoryPool, FTLSCh
 			CurrentBlockCount += TLSChunkPool[i].SubCurrentBlockCount;
 		}
 	}
-	void UploadDebugInstanceInfo(lvk::IContext* LVKContext)
+	void UploadDebugInstanceInfo(lvk::IContext* LVKContext, uint32_t RenderFrameIndex_)
 	{
 		for (uint32_t i = 0; i < ThreadCount; i++)
 		{
-			LVKContext->upload(DebugInstanceBuffer, TLSChunkPoolRead[i].GPUInstanceData.data(), 
+			LVKContext->upload(DebugInstanceBuffer[RenderFrameIndex_], TLSChunkPoolRead[i].GPUInstanceData.data(),
 				sizeof(FGPUSimpleInstanceData) * TLSChunkPoolRead[i].GPUInstanceData.size(), 
 				sizeof(FGPUSimpleInstanceData) * TLSChunkPoolRead[i].GPUInstanceOffset);
 		}
 	}
-	void UploadChunk(lvk::IContext* LVKContext)
+	void UploadChunk(lvk::IContext* LVKContext, uint32_t RenderFrameIndex_)
 	{
 		for (uint32_t i = 0; i < ThreadCount; i++)
 		{
-			LVKContext->upload(ChunkBuffer, TLSChunkPoolRead[i].GPUChunksPool.data(),
+			LVKContext->upload(ChunkBuffer[RenderFrameIndex_], TLSChunkPoolRead[i].GPUChunksPool.data(),
 				sizeof(FGPUChunk) * TLSChunkPoolRead[i].GPUChunksPool.size(),
 				sizeof(FGPUChunk) * TLSChunkPoolRead[i].ChunkCountOffset);
 		}
 	}
-	void UploadBlock(lvk::IContext* LVKContext)
+	void UploadBlock(lvk::IContext* LVKContext, uint32_t RenderFrameIndex_)
 	{
 		for (uint32_t i = 0; i < ThreadCount; i++)
 		{
-			LVKContext->upload(BlockBuffer, TLSChunkPoolRead[i].GPUBlockPool.data(),
+			LVKContext->upload(BlockBuffer[RenderFrameIndex_], TLSChunkPoolRead[i].GPUBlockPool.data(),
 				sizeof(FGPUBlock) * TLSChunkPoolRead[i].GPUBlockPool.size(),
 				sizeof(FGPUBlock) * TLSChunkPoolRead[i].BlockCountOffset);
 		}
 	}
-	void UpdateDebugVisibleChunk(lvk::IContext* LVKContext, const FVoxelSceneConfig& VoxelSceneConfig)
+	void UpdateDebugVisibleChunk(lvk::IContext* LVKContext, const FVoxelSceneConfig& VoxelSceneConfig, uint32_t RenderFrameIndex_)
 	{
 		if (!bDebugGatherChunk)
 		{
 			return;
 		}
 		bool Expected = true;
-		if (bAtomicDebugVisibleChunkDirty.compare_exchange_strong(Expected, false))// Compare, Release
+		if (bAtomicDebugVisibleChunkDirty[RenderFrameIndex_].compare_exchange_strong(Expected, false))// Compare, Release
 		{
 			DebugTimerSet.Start(DebugMarkGatherVisibleChunk);
 			GatherDebugInstanceInfo(VoxelSceneConfig);
 			DebugTimerSet.Record(DebugMarkGatherVisibleChunk);
 
 			DebugTimerSet.Start(DebugMarkUploadVisibleChunk);
-			UploadDebugInstanceInfo(LVKContext);
+			UploadDebugInstanceInfo(LVKContext, RenderFrameIndex_);
 			DebugTimerSet.Record(DebugMarkUploadVisibleChunk);
 
 			DebugTimerSet.Start(DebugMarkUploadChunk);
-			UploadChunk(LVKContext);
+			UploadChunk(LVKContext, RenderFrameIndex_);
 			DebugTimerSet.Record(DebugMarkUploadChunk);
 
 			DebugTimerSet.Start(DebugMarkUploadBlock);
-			UploadBlock(LVKContext);
+			UploadBlock(LVKContext, RenderFrameIndex_);
 			DebugTimerSet.Record(DebugMarkUploadBlock);
 		}
 	}

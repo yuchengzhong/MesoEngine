@@ -254,7 +254,7 @@ public:
             {
                 return FGeneratorHelper::GenerateSphere(StartLocation, BlockSize, ChunkResolution, MipmapLevel);
             };
-        ChunkManager.Initialize(LVKContext.get(), ThreadCount, VoxelSceneConfig, GeneratorInstance, bLVKReverseZ);
+        ChunkManager.Initialize(LVKContext.get(), ThreadCount, VoxelSceneConfig, GeneratorInstance, bLVKReverseZ, kNumBufferedFrames);
     }
     void WhenCameraChunkUpdate() override
     {
@@ -266,7 +266,7 @@ public:
     }
     void UpdatePhysics() override
     {
-        ChunkManager.UpdateLoadingQueue(LVKContext.get(), WindowsCamera.CameraChunkLocation, WindowsCamera.CameraForward, VoxelSceneConfig);
+        ChunkManager.UpdateLoadingQueue(LVKContext.get(), WindowsCamera.CameraChunkLocation, WindowsCamera.CameraForward, VoxelSceneConfig, RenderFrameIndex);
     }
     void CreateWindowsFrameBuffer() override
     {
@@ -359,7 +359,7 @@ public:
         } GlobalChunkBlockUBOBinding = {
             .Camera = LVKContext->gpuAddress(UBOCamera[RenderFrameIndex]),
             .Scene = LVKContext->gpuAddress(UBOSceneConfig),
-            .Chunks = LVKContext->gpuAddress(ChunkManager.ChunkPool.ChunkBuffer),
+            .Chunks = LVKContext->gpuAddress(ChunkManager.ChunkPool.ChunkBuffer[RenderFrameIndex]),
         };
         {
             lvk::ICommandBuffer& Buffer = LVKContext->acquireCommandBuffer();
@@ -370,7 +370,7 @@ public:
                 BindViewportScissor(Buffer);
                 Buffer.cmdPushDebugGroupLabel("Render Voxels", 0xa0ffa0ff);
                 Buffer.cmdBindDepthState({ .compareOp = bLVKReverseZ ? lvk::CompareOp_Greater : lvk::CompareOp_Less, .isDepthWriteEnabled = true });
-                Buffer.cmdBindVertexBuffer(0, ChunkManager.ChunkPool.BlockBuffer, 0);
+                Buffer.cmdBindVertexBuffer(0, ChunkManager.ChunkPool.BlockBuffer[RenderFrameIndex], 0);
                 Buffer.cmdBindIndexBuffer(TripleCubeIndex.IndexBuffer, lvk::IndexFormat_UI16);
 
                 Buffer.cmdPushConstants(GlobalChunkBlockUBOBinding);
