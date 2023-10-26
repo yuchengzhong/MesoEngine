@@ -83,46 +83,47 @@ ivec3 ReverseUnpackU8Vec3(uint PackedValue)
     uint z = (PackedValue >> 16) & 0xFF;
     return ivec3(x, y, z);
 }
+#define BOX_SIZE 0.5
 const vec3 TriplanarPositions[56] = vec3[56](
-	vec3(-1.0, -1.0, -1.0), //0
-	vec3(-1.0, 1.0, 1.0), vec3(-1.0, 1.0, -1.0), 
-	vec3(1.0, 1.0, -1.0), vec3(1.0, -1.0, -1.0), 
-	vec3(1.0, -1.0, 1.0), vec3(-1.0, -1.0, 1.0),
+	vec3(-BOX_SIZE, -BOX_SIZE, -BOX_SIZE), //0
+	vec3(-BOX_SIZE, BOX_SIZE, BOX_SIZE), vec3(-BOX_SIZE, BOX_SIZE, -BOX_SIZE), 
+	vec3(BOX_SIZE, BOX_SIZE, -BOX_SIZE), vec3(BOX_SIZE, -BOX_SIZE, -BOX_SIZE), 
+	vec3(BOX_SIZE, -BOX_SIZE, BOX_SIZE), vec3(-BOX_SIZE, -BOX_SIZE, BOX_SIZE),
 
-	vec3(1.0, -1.0, -1.0), //1
-	vec3(1.0, 1.0, 1.0), vec3(1.0, 1.0, -1.0), 
-	vec3(-1.0, 1.0, -1.0), vec3(-1.0, -1.0, -1.0), 
-	vec3(-1.0, -1.0, 1.0), vec3(1.0, -1.0, 1.0),
+	vec3(BOX_SIZE, -BOX_SIZE, -BOX_SIZE), //1
+	vec3(BOX_SIZE, BOX_SIZE, BOX_SIZE), vec3(BOX_SIZE, BOX_SIZE, -BOX_SIZE), 
+	vec3(-BOX_SIZE, BOX_SIZE, -BOX_SIZE), vec3(-BOX_SIZE, -BOX_SIZE, -BOX_SIZE), 
+	vec3(-BOX_SIZE, -BOX_SIZE, BOX_SIZE), vec3(BOX_SIZE, -BOX_SIZE, BOX_SIZE),
 
-	vec3(-1.0, 1.0, -1.0), //2
-	vec3(-1.0, -1.0, 1.0), vec3(-1.0, -1.0, -1.0), 
-	vec3(1.0, -1.0, -1.0), vec3(1.0, 1.0, -1.0), 
-	vec3(1.0, 1.0, 1.0), vec3(-1.0, 1.0, 1.0),
+	vec3(-BOX_SIZE, BOX_SIZE, -BOX_SIZE), //2
+	vec3(-BOX_SIZE, -BOX_SIZE, BOX_SIZE), vec3(-BOX_SIZE, -BOX_SIZE, -BOX_SIZE), 
+	vec3(BOX_SIZE, -BOX_SIZE, -BOX_SIZE), vec3(BOX_SIZE, BOX_SIZE, -BOX_SIZE), 
+	vec3(BOX_SIZE, BOX_SIZE, BOX_SIZE), vec3(-BOX_SIZE, BOX_SIZE, BOX_SIZE),
 
-	vec3(1.0, 1.0, -1.0), //3
-	vec3(1.0, -1.0, 1.0), vec3(1.0, -1.0, -1.0), 
-	vec3(-1.0, -1.0, -1.0), vec3(-1.0, 1.0, -1.0), 
-	vec3(-1.0, 1.0, 1.0), vec3(1.0, 1.0, 1.0),
+	vec3(BOX_SIZE, BOX_SIZE, -BOX_SIZE), //3
+	vec3(BOX_SIZE, -BOX_SIZE, BOX_SIZE), vec3(BOX_SIZE, -BOX_SIZE, -BOX_SIZE), 
+	vec3(-BOX_SIZE, -BOX_SIZE, -BOX_SIZE), vec3(-BOX_SIZE, BOX_SIZE, -BOX_SIZE), 
+	vec3(-BOX_SIZE, BOX_SIZE, BOX_SIZE), vec3(BOX_SIZE, BOX_SIZE, BOX_SIZE),
 
-	vec3(-1.0, -1.0, 1.0), //4
-	vec3(-1.0, 1.0, -1.0), vec3(-1.0, 1.0, 1.0), 
-	vec3(1.0, 1.0, 1.0), vec3(1.0, -1.0, 1.0), 
-	vec3(1.0, -1.0, -1.0), vec3(-1.0, -1.0, -1.0),
+	vec3(-BOX_SIZE, -BOX_SIZE, BOX_SIZE), //4
+	vec3(-BOX_SIZE, BOX_SIZE, -BOX_SIZE), vec3(-BOX_SIZE, BOX_SIZE, BOX_SIZE), 
+	vec3(BOX_SIZE, BOX_SIZE, BOX_SIZE), vec3(BOX_SIZE, -BOX_SIZE, BOX_SIZE), 
+	vec3(BOX_SIZE, -BOX_SIZE, -BOX_SIZE), vec3(-BOX_SIZE, -BOX_SIZE, -BOX_SIZE),
 
-	vec3(1.0, -1.0, 1.0), //5
-	vec3(1.0, 1.0, -1.0), vec3(1.0, 1.0, 1.0), 
-	vec3(-1.0, 1.0, 1.0), vec3(-1.0, -1.0, 1.0), 
-	vec3(-1.0, -1.0, -1.0), vec3(1.0, -1.0, -1.0),
+	vec3(BOX_SIZE, -BOX_SIZE, BOX_SIZE), //5
+	vec3(BOX_SIZE, BOX_SIZE, -BOX_SIZE), vec3(BOX_SIZE, BOX_SIZE, BOX_SIZE), 
+	vec3(-BOX_SIZE, BOX_SIZE, BOX_SIZE), vec3(-BOX_SIZE, -BOX_SIZE, BOX_SIZE), 
+	vec3(-BOX_SIZE, -BOX_SIZE, -BOX_SIZE), vec3(BOX_SIZE, -BOX_SIZE, -BOX_SIZE),
 
-	vec3(-1.0, 1.0, 1.0), //6
-	vec3(-1.0, -1.0, -1.0), vec3(-1.0, -1.0, 1.0), 
-	vec3(1.0, -1.0, 1.0), vec3(1.0, 1.0, 1.0), 
-	vec3(1.0, 1.0, -1.0), vec3(-1.0, 1.0, -1.0),
+	vec3(-BOX_SIZE, BOX_SIZE, BOX_SIZE), //6
+	vec3(-BOX_SIZE, -BOX_SIZE, -BOX_SIZE), vec3(-BOX_SIZE, -BOX_SIZE, BOX_SIZE), 
+	vec3(BOX_SIZE, -BOX_SIZE, BOX_SIZE), vec3(BOX_SIZE, BOX_SIZE, BOX_SIZE), 
+	vec3(BOX_SIZE, BOX_SIZE, -BOX_SIZE), vec3(-BOX_SIZE, BOX_SIZE, -BOX_SIZE),
 
-	vec3(1.0, 1.0, 1.0), //7
-	vec3(1.0, -1.0, -1.0), vec3(1.0, -1.0, 1.0), 
-	vec3(-1.0, -1.0, 1.0), vec3(-1.0, 1.0, 1.0), 
-	vec3(-1.0, 1.0, -1.0), vec3(1.0, 1.0, -1.0)
+	vec3(BOX_SIZE, BOX_SIZE, BOX_SIZE), //7
+	vec3(BOX_SIZE, -BOX_SIZE, -BOX_SIZE), vec3(BOX_SIZE, -BOX_SIZE, BOX_SIZE), 
+	vec3(-BOX_SIZE, -BOX_SIZE, BOX_SIZE), vec3(-BOX_SIZE, BOX_SIZE, BOX_SIZE), 
+	vec3(-BOX_SIZE, BOX_SIZE, -BOX_SIZE), vec3(BOX_SIZE, BOX_SIZE, -BOX_SIZE)
 );
 
 int GetOctantId(vec3 v) 
@@ -132,6 +133,14 @@ int GetOctantId(vec3 v)
     if(v.y < 0.0) id |= 2;     // 010
     if(v.z < 0.0) id |= 4;     // 100
     return id;
+}
+vec3 GetOctantColor(vec3 v) 
+{
+    vec3 c = vec3(0.0);
+    if(v.x > 0.0) c.x = 1.0;
+    if(v.y > 0.0) c.y = 1.0;
+    if(v.z > 0.0) c.z = 1.0;
+    return c;
 }
 
 void main() 
@@ -155,25 +164,21 @@ void main()
 //
     mat4 Projection = pc.Camera.Projection;
     mat4 View = pc.Camera.View;
-    //vec3 RealVertexPosition = 0.5 * VertexPosition * pc.Scene.BlockSize + RealViewChunkRelativeBlockOffset;
+    vec3 CameraPosition = pc.Camera.SubCameraLocation.xyz;
 //
     ivec3 ViewChunkRelativeBlockOffset = ChunkOffset * int(pc.Scene.ChunkResolution) + SubOffset;
     float ChunkResolutionInv = 1.0 / pc.Scene.ChunkResolution;
     vec3 RealViewChunkRelativeBlockOffset = ViewChunkRelativeBlockOffset * ChunkResolutionInv * pc.Scene.ChunkSize;
-    vec3 CameraPosition = pc.Camera.SubCameraLocation.xyz;
 //
     vec3 RealViewRelativeBlockOffset = RealViewChunkRelativeBlockOffset - CameraPosition;
     int OctantId = GetOctantId(RealViewRelativeBlockOffset);
     vec3 ImposterVertexPosition = TriplanarPositions[gl_VertexIndex + OctantId * 7];
 //    
-    vec3 RealVertexPosition = 0.5 * ImposterVertexPosition * pc.Scene.BlockSize + RealViewChunkRelativeBlockOffset;
+    vec3 RealVertexPosition = (ImposterVertexPosition + 0.5) * pc.Scene.BlockSize + RealViewChunkRelativeBlockOffset;
 //    
     gl_Position = Projection * View * vec4(RealVertexPosition, 1.0); //TODO: If Camera Location is inside a cube, move cube surface backward in clip space(for reduce z fighting)
-
-    //vtx.Normal = vec3(1.0, 0.0, 0.0);//normalize(VertexNormal);
-    vtx.Normal = ImposterVertexPosition;//normalize(VertexNormal);
-    vtx.Color = vec3(OctantId * 1.0 / 7.0);
-    //vtx.Color = normalize(CameraPosition + pc.Camera.CameraChunkLocation.xyz * pc.Scene.ChunkSize) * 0.5 + 0.5;
+    vtx.Normal = ImposterVertexPosition;
+    vtx.Color = GetOctantColor(RealViewRelativeBlockOffset);//vec3(OctantId * 1.0 / 7.0);
 }
 )";
     }
@@ -204,8 +209,6 @@ layout (location=0) out vec4 out_FragColor;
 
 void main() 
 {
-    //vec3 n = normalize(vtx.Normal);
-    //out_FragColor = vec4(n*0.5+0.5, 0.0);
     out_FragColor = vec4(vtx.Normal*0.5+0.5, 0.0);
     //out_FragColor = vec4(vtx.Color, 0.0);
 }
